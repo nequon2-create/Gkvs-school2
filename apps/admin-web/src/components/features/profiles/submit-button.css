@@ -1,0 +1,36 @@
+/* Submit button with sky blue → dark blue on click */
+.submit-button {
+    width: 100%;
+    padding: 1rem;
+    background: #38bdf8;
+    /* Sky blue */
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+}
+
+.submit-button:hover:not(:disabled) {
+    background: #0ea5e9;
+    /* Slightly darker sky blue */
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(56, 189, 248, 0.4);
+}
+
+.submit-button:active:not(:disabled) {
+    background: #0c4a6e;
+    /* Dark blue when clicked */
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(12, 74, 110, 0.4);
+}
+
+.submit-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    background: #94a3b8;
+}

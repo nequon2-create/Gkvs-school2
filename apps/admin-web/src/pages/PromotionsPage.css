@@ -1,0 +1,193 @@
+.promotions-page {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.promotions-header {
+    margin-bottom: 2rem;
+}
+
+.promotions-header h1 {
+    font-size: 1.8rem;
+    color: var(--text-primary);
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.promotions-header p {
+    color: var(--text-secondary);
+}
+
+.promotions-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+.promotion-panel {
+    background: var(--bg-surface);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border-color);
+}
+
+.promotion-panel h2 {
+    font-size: 1.25rem;
+    color: var(--text-primary);
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.75rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.form-select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.students-selection-list {
+    margin-top: 1.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.students-select-all {
+    padding: 1rem;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 500;
+}
+
+.student-selection-item {
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.student-selection-item:last-child {
+    border-bottom: none;
+}
+
+.student-selection-item:hover {
+    background-color: var(--bg-hover);
+}
+
+.student-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.student-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.student-reg {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.student-profile-pic-container {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+}
+
+.student-profile-pic {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--border-color);
+}
+
+.student-profile-pic-placeholder {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.action-section {
+    margin-top: 2rem;
+    text-align: right;
+}
+
+.promote-btn {
+    padding: 0.75rem 1.5rem;
+    background-color: var(--primary-color, #4f46e5);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.promote-btn:hover:not(:disabled) {
+    background-color: var(--primary-hover, #4338ca);
+}
+
+.promote-btn:disabled {
+    background-color: var(--text-disabled);
+    cursor: not-allowed;
+}
+
+.empty-students {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary);
+}
+
+.message-banner {
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.message-banner.success {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: #059669;
+    border: 1px solid #10b981;
+}
+
+.message-banner.error {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+    border: 1px solid #ef4444;
+}
+
+@media (max-width: 768px) {
+    .promotions-container {
+        grid-template-columns: 1fr;
+    }
+}

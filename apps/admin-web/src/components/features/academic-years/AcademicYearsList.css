@@ -1,0 +1,46 @@
+.years-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--space-6);
+}
+
+.year-card-skeleton {
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-16) var(--space-8);
+    background: var(--surface-white);
+    border-radius: var(--radius-xl);
+    border: 2px dashed var(--border-medium);
+}
+
+.empty-icon {
+    font-size: var(--text-6xl);
+    margin-bottom: var(--space-4);
+    opacity: 0.5;
+}
+
+.empty-title {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-semibold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-2);
+}
+
+.empty-text {
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .years-grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-4);
+    }
+}

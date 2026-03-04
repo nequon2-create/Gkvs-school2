@@ -1,0 +1,120 @@
+/* Profile Pages Additional Styles */
+
+.profile-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.btn-back {
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-bottom: 16px;
+    padding: 8px 0;
+    transition: color 0.2s;
+}
+
+.btn-back:hover {
+    color: #2563eb;
+}
+
+.section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 24px 0 16px 0;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.tab-count {
+    background: #2563eb;
+    color: white;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 6px;
+}
+
+.profile-loading,
+.profile-error {
+    text-align: center;
+    padding: 64px 24px;
+}
+
+.spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #e5e7eb;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 16px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.profile-error h2 {
+    color: #ef4444;
+    margin-bottom: 12px;
+}
+
+.btn-primary {
+    background: #2563eb;
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 16px;
+    transition: all 0.2s;
+}
+
+.btn-primary:hover {
+    background: #1d4ed8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+/* Grade badges colors */
+.grade-badge {
+    background: #e5e7eb;
+    color: #1f2937;
+}
+
+.grade-aplus {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.grade-a {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.grade-bplus,
+.grade-b {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.grade-c {
+    background: #fed7aa;
+    color: #9a3412;
+}
+
+.grade-d,
+.grade-f {
+    background: #fee2e2;
+    color: #991b1b;
+}

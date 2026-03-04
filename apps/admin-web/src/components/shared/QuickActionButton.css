@@ -1,0 +1,83 @@
+.quick-action-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    background: var(--surface-white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all var(--transition-base);
+    box-shadow: var(--shadow-xs);
+}
+
+.quick-action-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-medium);
+}
+
+.quick-action-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.quick-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.quick-action-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform var(--transition-fast);
+}
+
+.quick-action-btn:hover:not(:disabled) .quick-action-icon {
+    transform: scale(1.1);
+}
+
+/* Color variants */
+.quick-action-blue .quick-action-icon {
+    background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+    color: var(--text-inverse);
+}
+
+.quick-action-emerald .quick-action-icon {
+    background: linear-gradient(135deg, #34D399 0%, #10B981 100%);
+    color: var(--text-inverse);
+}
+
+.quick-action-amber .quick-action-icon {
+    background: linear-gradient(135deg, #FBBF24 0%, #F59E0B 100%);
+    color: var(--text-inverse);
+}
+
+.quick-action-purple .quick-action-icon {
+    background: linear-gradient(135deg, #A78BFA 0%, #8B5CF6 100%);
+    color: var(--text-inverse);
+}
+
+.quick-action-label {
+    font-weight: var(--font-medium);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .quick-action-btn {
+        flex-direction: column;
+        padding: var(--space-4);
+        text-align: center;
+        gap: var(--space-2);
+    }
+
+    .quick-action-label {
+        font-size: var(--text-xs);
+    }
+}
