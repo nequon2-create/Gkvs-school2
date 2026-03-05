@@ -351,7 +351,7 @@ export function CreateReceiptPage() {
 
                     <div className="school-info-section">
                         <div className="school-logo">
-                            <img src="/src/assets/logo.jpeg" alt="Logo" />
+                            <img src="/logo.jpeg" alt="Logo" />
                         </div>
                         <div className="school-names">
                             <h1 className="main-school-name">Grameen Krida vasati shale sharan sirasagi</h1>

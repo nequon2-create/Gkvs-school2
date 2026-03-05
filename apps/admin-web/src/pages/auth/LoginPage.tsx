@@ -49,7 +49,7 @@ export function LoginPage() {
             <div className="login-card">
                 <div className="login-header">
                     <img
-                        src="/src/assets/logo.jpeg"
+                        src="/logo.jpeg"
                         alt="School Logo"
                         className="school-logo"
                     />

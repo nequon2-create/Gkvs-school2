@@ -55,7 +55,7 @@ export function Sidebar() {
             <div className="sidebar-header">
                 <div className="logo-container">
                     <img
-                        src="/src/assets/logo.jpeg"
+                        src="/logo.jpeg"
                         alt="School Logo"
                         className="sidebar-logo"
                     />
