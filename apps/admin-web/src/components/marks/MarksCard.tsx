@@ -193,11 +193,14 @@ export function MarksCard({ studentId, examId, onClose }: MarksCardProps) {
         );
     }
 
-    const displayedMarks = marks.map(m => ({
-        ...m,
-        marks_obtained: isEditing && editedMarks[m.id] !== undefined ? editedMarks[m.id] : m.marks_obtained,
-        grade: isEditing && editedMarks[m.id] !== undefined ? calculateGrade(editedMarks[m.id], m.max_marks || 100) : m.grade
-    }));
+    const displayedMarks = marks.map(m => {
+        const obtained = isEditing && editedMarks[m.id] !== undefined ? editedMarks[m.id] : m.marks_obtained;
+        return {
+            ...m,
+            marks_obtained: obtained,
+            grade: calculateGrade(obtained, m.max_marks || 100)
+        };
+    });
 
     const totalMarks = displayedMarks.reduce((sum, m) => sum + m.marks_obtained, 0);
     const totalMaxMarks = displayedMarks.reduce((sum, m) => sum + m.max_marks, 0);

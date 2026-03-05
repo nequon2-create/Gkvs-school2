@@ -1,0 +1,71 @@
+src/components/features/exams/ExamCard.tsx(14,40): error TS2339: Property 'subject' does not exist on type 'ExamListItem'.
+src/components/features/exams/ExamCard.tsx(19,43): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | null | undefined' is not assignable to parameter of type 'string | number | Date'.
+      Type 'undefined' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | null | undefined' is not assignable to parameter of type 'string | number'.
+      Type 'undefined' is not assignable to type 'string | number'.
+src/components/features/exams/ExamCard.tsx(20,32): error TS2339: Property 'exam_time' does not exist on type 'ExamListItem'.
+src/components/features/exams/ExamCard.tsx(21,46): error TS2339: Property 'exam_time' does not exist on type 'ExamListItem'.
+src/components/features/exams/ExamCard.tsx(31,53): error TS2339: Property 'subject' does not exist on type 'ExamListItem'.
+src/components/features/exams/ExamCard.tsx(36,19): error TS2339: Property 'description' does not exist on type 'ExamListItem'.
+src/components/features/exams/ExamCard.tsx(37,55): error TS2339: Property 'description' does not exist on type 'ExamListItem'.
+src/components/features/exams/ExamCard.tsx(64,23): error TS2339: Property 'duration_minutes' does not exist on type 'ExamListItem'.
+src/components/features/exams/ExamCard.tsx(67,37): error TS2339: Property 'duration_minutes' does not exist on type 'ExamListItem'.
+src/components/features/exams/ExamCard.tsx(72,33): error TS2339: Property 'total_marks' does not exist on type 'ExamListItem'.
+src/components/features/exams/ExamForm.tsx(22,9): error TS2353: Object literal may only specify known properties, and 'description' does not exist in type 'CreateExamInput | (() => CreateExamInput)'.
+src/components/features/exams/ExamForm.tsx(22,28): error TS2339: Property 'description' does not exist on type 'Exam'.
+src/components/features/exams/ExamForm.tsx(23,24): error TS2339: Property 'subject' does not exist on type 'Exam'.
+src/components/features/exams/ExamForm.tsx(27,26): error TS2339: Property 'exam_time' does not exist on type 'Exam'.
+src/components/features/exams/ExamForm.tsx(28,33): error TS2339: Property 'duration_minutes' does not exist on type 'Exam'.
+src/components/features/exams/ExamForm.tsx(29,28): error TS2339: Property 'total_marks' does not exist on type 'Exam'.
+src/components/features/exams/ExamForm.tsx(30,30): error TS2339: Property 'passing_marks' does not exist on type 'Exam'.
+src/components/features/exams/ExamForm.tsx(90,23): error TS2339: Property 'subject' does not exist on type 'CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(102,22): error TS2339: Property 'total_marks' does not exist on type 'CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(105,22): error TS2339: Property 'passing_marks' does not exist on type 'CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(105,48): error TS2339: Property 'passing_marks' does not exist on type 'CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(105,73): error TS2339: Property 'total_marks' does not exist on type 'CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(161,45): error TS2339: Property 'description' does not exist on type 'CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(162,59): error TS2345: Argument of type '"description"' is not assignable to parameter of type 'keyof CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(176,49): error TS2339: Property 'subject' does not exist on type 'CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(177,63): error TS2345: Argument of type '"subject"' is not assignable to parameter of type 'keyof CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(249,49): error TS2339: Property 'exam_time' does not exist on type 'CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(250,63): error TS2345: Argument of type '"exam_time"' is not assignable to parameter of type 'keyof CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(261,49): error TS2339: Property 'duration_minutes' does not exist on type 'CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(262,63): error TS2345: Argument of type '"duration_minutes"' is not assignable to parameter of type 'keyof CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(280,49): error TS2339: Property 'total_marks' does not exist on type 'CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(281,63): error TS2345: Argument of type '"total_marks"' is not assignable to parameter of type 'keyof CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(293,49): error TS2339: Property 'passing_marks' does not exist on type 'CreateExamInput'.
+src/components/features/exams/ExamForm.tsx(294,63): error TS2345: Argument of type '"passing_marks"' is not assignable to parameter of type 'keyof CreateExamInput'.
+src/components/features/marks/MarksForm.tsx(189,88): error TS2352: Conversion of type '{ student_id: string; exam_id: string; subject: string; marks_obtained: number; max_marks: number; remarks: string | undefined; }' to type 'CreateMarksInput' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Property 'subject_id' is missing in type '{ student_id: string; exam_id: string; subject: string; marks_obtained: number; max_marks: number; remarks: string | undefined; }' but required in type 'CreateMarksInput'.
+src/components/features/marks/MarksForm.tsx(209,32): error TS2339: Property 'subject' does not exist on type 'CreateMarksInput'.
+src/components/features/marks/MarksTable.tsx(21,14): error TS2551: Property 'subject' does not exist on type 'MarksWithDetails'. Did you mean 'subjects'?
+src/components/features/marks/MarksTable.tsx(35,30): error TS18049: 'a.grade' is possibly 'null' or 'undefined'.
+src/components/features/marks/MarksTable.tsx(35,52): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(that: string, locales?: LocalesArgument, options?: CollatorOptions | undefined): number', gave the following error.
+    Argument of type 'string | null | undefined' is not assignable to parameter of type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+  Overload 2 of 3, '(that: string, locales?: string | string[] | undefined, options?: CollatorOptions | undefined): number', gave the following error.
+    Argument of type 'string | null | undefined' is not assignable to parameter of type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+  Overload 3 of 3, '(that: string): number', gave the following error.
+    Argument of type 'string | null | undefined' is not assignable to parameter of type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/features/marks/MarksTable.tsx(124,91): error TS2551: Property 'subject' does not exist on type 'MarksWithDetails'. Did you mean 'subjects'?
+src/components/features/marks/MarksTable.tsx(125,43): error TS2551: Property 'subject' does not exist on type 'MarksWithDetails'. Did you mean 'subjects'?
+src/components/features/marks/MarksTable.tsx(136,81): error TS2345: Argument of type 'Grade | null | undefined' is not assignable to parameter of type 'Grade'.
+  Type 'undefined' is not assignable to type 'Grade'.
+src/context/AuthContext.tsx(3,15): error TS2305: Module '"../lib/supabase"' has no exported member 'Database'.
+src/hooks/useStudentProfile.ts(24,35): error TS6133: 'studentId' is declared but its value is never read.
+src/hooks/useStudentProfile.ts(187,23): error TS6133: 'percentages' is declared but its value is never read.
+src/hooks/useTeacherProfile.ts(13,35): error TS6133: 'teacherId' is declared but its value is never read.
+src/hooks/useTeacherProfile.ts(61,11): error TS6133: 'fetchClasses' is declared but its value is never read.
+src/hooks/useTeacherProfile.ts(61,45): error TS6133: 'id' is declared but its value is never read.
+src/hooks/useTeachers.ts(84,47): error TS2339: Property 'is_active' does not exist on type 'TeacherListItem'.
+src/pages/ExamsPage.tsx(55,22): error TS2345: Argument of type '{ id: any; exam_name: any; exam_type: any; start_date: any; end_date: any; classes: { class_name: any; section: any; }[]; }[]' is not assignable to parameter of type 'SetStateAction<ExamTimetable[]>'.
+  Type '{ id: any; exam_name: any; exam_type: any; start_date: any; end_date: any; classes: { class_name: any; section: any; }[]; }[]' is not assignable to type 'ExamTimetable[]'.
+    Type '{ id: any; exam_name: any; exam_type: any; start_date: any; end_date: any; classes: { class_name: any; section: any; }[]; }' is not assignable to type 'ExamTimetable'.
+      Types of property 'classes' are incompatible.
+        Type '{ class_name: any; section: any; }[]' is missing the following properties from type '{ class_name: string; section: string | null; }': class_name, section

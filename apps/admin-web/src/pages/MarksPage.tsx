@@ -60,6 +60,14 @@ export function MarksPage() {
     };
 
     const fetchAllStudents = async () => {
+        const { data: currentYear } = await supabase
+            .from('academic_years')
+            .select('id')
+            .eq('is_current', true)
+            .single();
+
+        if (!currentYear) return;
+
         const { data } = await supabase
             .from('students')
             .select(`
@@ -69,6 +77,7 @@ export function MarksPage() {
         photo_url,
         classes (class_name)
       `)
+            .eq('academic_year_id', currentYear.id)
             .eq('is_active', true);
 
         // Calculate average marks for each student based on their latest exam
@@ -144,8 +153,14 @@ export function MarksPage() {
       classes (class_name)
     `);
 
+        query = query.eq('is_active', true);
+
         if (selectedFilterClass) {
             query = query.eq('class_id', selectedFilterClass);
+        }
+
+        if (selectedYear) {
+            query = query.eq('academic_year_id', selectedYear);
         }
 
         const { data: studentsData } = await query;

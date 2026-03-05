@@ -199,19 +199,22 @@ export default function MarksCard({ visible, studentId, examId, onClose }: Marks
                                     <Text style={styles.tableHeaderCell}>Grade</Text>
                                 </View>
 
-                                {marks.map((mark, index) => (
-                                    <View key={mark.id} style={[styles.tableRow, index % 2 === 0 ? { backgroundColor: '#FFFFFF' } : { backgroundColor: '#FAFAFA' }]}>
-                                        <Text style={[styles.tableCell, { flex: 2, textAlign: 'left', fontWeight: '500' }]}>{mark.subject_name}</Text>
-                                        <Text style={[styles.tableCell, { fontWeight: '700' }]}>{mark.marks_obtained}</Text>
-                                        <Text style={[styles.tableCell, { color: '#6B7280' }]}>{mark.max_marks}</Text>
-                                        <Text style={[styles.tableCell, { color: '#6B7280' }]}>{mark.max_marks > 0 ? Math.round((mark.marks_obtained / mark.max_marks) * 100) : 0}%</Text>
-                                        <View style={[styles.gradeBadge, mark.grade.includes('A') ? { backgroundColor: '#DEF7EC' } : mark.grade.includes('C') ? { backgroundColor: '#FDE8E8' } : { backgroundColor: '#FEF08A' }]}>
-                                            <Text style={[styles.gradeText, mark.grade.includes('A') ? { color: '#03543F' } : mark.grade.includes('C') ? { color: '#9B1C1C' } : { color: '#723B13' }]}>
-                                                {mark.grade}
-                                            </Text>
+                                {marks.map((mark, index) => {
+                                    const dynamicGrade = calculateGrade(mark.marks_obtained, mark.max_marks || 100);
+                                    return (
+                                        <View key={mark.id} style={[styles.tableRow, index % 2 === 0 ? { backgroundColor: '#FFFFFF' } : { backgroundColor: '#FAFAFA' }]}>
+                                            <Text style={[styles.tableCell, { flex: 2, textAlign: 'left', fontWeight: '500' }]}>{mark.subject_name}</Text>
+                                            <Text style={[styles.tableCell, { fontWeight: '700' }]}>{mark.marks_obtained}</Text>
+                                            <Text style={[styles.tableCell, { color: '#6B7280' }]}>{mark.max_marks}</Text>
+                                            <Text style={[styles.tableCell, { color: '#6B7280' }]}>{mark.max_marks > 0 ? Math.round((mark.marks_obtained / mark.max_marks) * 100) : 0}%</Text>
+                                            <View style={[styles.gradeBadge, dynamicGrade.includes('A') ? { backgroundColor: '#DEF7EC' } : dynamicGrade.includes('C') ? { backgroundColor: '#FDE8E8' } : { backgroundColor: '#FEF08A' }]}>
+                                                <Text style={[styles.gradeText, dynamicGrade.includes('A') ? { color: '#03543F' } : dynamicGrade.includes('C') ? { color: '#9B1C1C' } : { color: '#723B13' }]}>
+                                                    {dynamicGrade}
+                                                </Text>
+                                            </View>
                                         </View>
-                                    </View>
-                                ))}
+                                    );
+                                })}
 
                                 {/* Total Row */}
                                 <View style={styles.totalRow}>

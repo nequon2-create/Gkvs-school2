@@ -30,6 +30,7 @@ export function Dashboard() {
         totalClasses: 0,
         pendingFees: 0
     });
+    const [currentYearId, setCurrentYearId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -39,12 +40,25 @@ export function Dashboard() {
     const fetchDashboardStats = async () => {
         try {
             setLoading(true);
+
+            // Fetch current academic year
+            const { data: currentYear } = await supabase
+                .from('academic_years')
+                .select('id')
+                .eq('is_current', true)
+                .single();
+
+            setCurrentYearId(currentYear?.id || null);
+
             const [
                 { count: studentsCount },
                 { count: teachersCount },
                 { count: classesCount },
             ] = await Promise.all([
-                supabase.from('students').select('*', { count: 'exact', head: true }),
+                supabase.from('students')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('academic_year_id', currentYear?.id)
+                    .eq('is_active', true),
                 supabase.from('teachers').select('*', { count: 'exact', head: true }),
                 supabase.from('classes').select('*', { count: 'exact', head: true }),
             ]);
@@ -86,7 +100,7 @@ export function Dashboard() {
             </div>
 
             {/* TODAY'S ATTENDANCE WIDGET */}
-            <TodayAttendanceWidget totalStudents={stats.totalStudents} />
+            <TodayAttendanceWidget totalStudents={stats.totalStudents} currentYearId={currentYearId} />
 
             <section className="section animate-fade-in">
                 <h2 className="section-title">Quick Actions</h2>
@@ -118,7 +132,7 @@ export function Dashboard() {
 }
 
 // ─── Today's Attendance Widget ────────────────────────────────────────────────
-function TodayAttendanceWidget({ totalStudents }: { totalStudents: number }) {
+function TodayAttendanceWidget({ totalStudents, currentYearId }: { totalStudents: number; currentYearId: string | null }) {
     const [present, setPresent] = useState(0);
     const [absent, setAbsent] = useState(0);
     const [lastUpdated, setLastUpdated] = useState<string>('');
@@ -133,10 +147,16 @@ function TodayAttendanceWidget({ totalStudents }: { totalStudents: number }) {
     const fetchTodayAttendance = async () => {
         try {
             const today = getTodayIST();
-            const { data, error } = await supabase
+            let query = supabase
                 .from('student_attendance')
-                .select('is_present, created_at')
+                .select('is_present, created_at, students!inner(academic_year_id)')
                 .eq('date', today);
+
+            if (currentYearId) {
+                query = query.eq('students.academic_year_id', currentYearId);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
 
@@ -165,13 +185,15 @@ function TodayAttendanceWidget({ totalStudents }: { totalStudents: number }) {
     };
 
     useEffect(() => {
+        if (!currentYearId) return; // Wait until we know the current year
         fetchTodayAttendance();
         const interval = setInterval(fetchTodayAttendance, 60000);
         return () => clearInterval(interval);
-    }, []);
+    }, [currentYearId]);
 
     // Real-time subscription
     useEffect(() => {
+        if (!currentYearId) return;
         const today = getTodayIST();
         const channel = supabase
             .channel('dashboard-today-attendance')
@@ -181,7 +203,7 @@ function TodayAttendanceWidget({ totalStudents }: { totalStudents: number }) {
             }, () => fetchTodayAttendance())
             .subscribe();
         return () => { supabase.removeChannel(channel); };
-    }, []);
+    }, [currentYearId]);
 
     const total = present + absent;
     const presentPct = total > 0 ? Math.round((present / total) * 100) : 0;

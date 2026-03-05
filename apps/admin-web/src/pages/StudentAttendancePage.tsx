@@ -28,6 +28,13 @@ export function StudentAttendancePage() {
                 .order('class_name');
             if (error) throw error;
 
+            // Fetch current academic year
+            const { data: currentYear } = await supabase
+                .from('academic_years')
+                .select('id')
+                .eq('is_current', true)
+                .single();
+
             // Get student counts per class
             const classesWithCounts = await Promise.all(
                 (data || []).map(async (cls) => {
@@ -35,6 +42,7 @@ export function StudentAttendancePage() {
                         .from('students')
                         .select('*', { count: 'exact', head: true })
                         .eq('class_id', cls.id)
+                        .eq('academic_year_id', currentYear?.id)
                         .eq('is_active', true);
                     return { ...cls, _count: count || 0 };
                 })

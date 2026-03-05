@@ -42,11 +42,19 @@ export function StudentAttendanceSheetPage() {
                 setClassName(`Class ${classData.class_name}${classData.section ? ` - ${classData.section}` : ''}`);
             }
 
+            // Fetch current academic year
+            const { data: currentYear } = await supabase
+                .from('academic_years')
+                .select('id')
+                .eq('is_current', true)
+                .single();
+
             // Fetch students
             const { data: studentData } = await supabase
                 .from('students')
                 .select('id, full_name, registration_number, roll_number')
                 .eq('class_id', classId)
+                .eq('academic_year_id', currentYear?.id)
                 .eq('is_active', true)
                 .order('roll_number');
             setStudents(studentData || []);

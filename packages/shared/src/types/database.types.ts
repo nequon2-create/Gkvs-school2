@@ -249,11 +249,11 @@ export type Database = {
                     class_id: string | null
                     created_at: string | null
                     end_date: string | null
+                    exam_date: string | null
                     exam_name: string
                     exam_type: string | null
                     id: string
-                    published: boolean | null
-                    start_date: string | null
+                    is_published: boolean | null
                     updated_at: string | null
                 }
                 Insert: {
@@ -261,11 +261,11 @@ export type Database = {
                     class_id?: string | null
                     created_at?: string | null
                     end_date?: string | null
+                    exam_date?: string | null
                     exam_name: string
                     exam_type?: string | null
                     id?: string
-                    published?: boolean | null
-                    start_date?: string | null
+                    is_published?: boolean | null
                     updated_at?: string | null
                 }
                 Update: {
@@ -273,11 +273,11 @@ export type Database = {
                     class_id?: string | null
                     created_at?: string | null
                     end_date?: string | null
+                    exam_date?: string | null
                     exam_name?: string
                     exam_type?: string | null
                     id?: string
-                    published?: boolean | null
-                    start_date?: string | null
+                    is_published?: boolean | null
                     updated_at?: string | null
                 }
                 Relationships: [
