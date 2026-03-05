@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useMarks } from '../../../hooks/useMarks';
-import type { CreateMarksInput } from '../../../types/marks.types';
 import { calculateGrade, calculatePercentage, validateMarks } from '../../../utils/gradeCalculator';
 import './MarksForm.css';
 
@@ -193,7 +192,7 @@ export function MarksForm() {
                 marks_obtained: typeof e.marks_obtained === 'number' ? e.marks_obtained : 0,
                 max_marks: maxMarks,
                 remarks: e.remarks
-            } as CreateMarksInput));
+            }));
 
             if (marksToSave.length === 0) {
                 alert('Please enter marks for at least one student');

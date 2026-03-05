@@ -10,9 +10,9 @@ interface ClassInfo {
     student_count: number;
 }
 
-export function useTeacherProfile(teacherId?: string) {
+export function useTeacherProfile(_teacherId?: string) {
     const [profile, setProfile] = useState<TeacherProfile | null>(null);
-    const [classes, setClasses] = useState<ClassInfo[]>([]);
+    const [classes] = useState<ClassInfo[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -54,19 +54,7 @@ export function useTeacherProfile(teacherId?: string) {
         }
     }, []);
 
-    /**
-     * Fetch classes taught by teacher
-     * (Placeholder - depends on database schema)
-     */
-    const fetchClasses = useCallback(async (id: string) => {
-        try {
-            // This would depend on having a relationship between teachers and classes
-            // For now, return empty array
-            setClasses([]);
-        } catch (err) {
-            console.error('Error fetching classes:', err);
-        }
-    }, []);
+
 
     /**
      * Update teacher profile information

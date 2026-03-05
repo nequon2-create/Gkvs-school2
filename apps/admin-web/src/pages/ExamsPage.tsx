@@ -10,10 +10,7 @@ interface ExamTimetable {
     exam_type: string;
     start_date: string;
     end_date: string;
-    classes?: {
-        class_name: string;
-        section: string | null;
-    };
+    classes?: any;
 }
 
 const EXAM_GRADIENTS = [

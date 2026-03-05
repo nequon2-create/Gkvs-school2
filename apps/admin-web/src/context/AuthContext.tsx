@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Database } from '../lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 
-type UserRole = Database['public']['Enums']['user_role'];
+type UserRole = 'admin' | 'principal' | 'teacher' | 'parent' | 'student';
 
 interface User {
     id: string;

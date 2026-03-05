@@ -1,5 +1,4 @@
 import type { ExamListItem } from '../../../types/exam.types';
-import { getSubjectEmoji } from '../../../types/exam.types';
 import { format } from 'date-fns';
 import './ExamCard.css';
 
@@ -11,15 +10,11 @@ interface ExamCardProps {
 }
 
 export function ExamCard({ exam, onEdit, onDelete, onTogglePublish }: ExamCardProps) {
-    const emoji = getSubjectEmoji(exam.subject);
     const className = exam.classes?.class_name || 'N/A';
     const section = exam.classes?.section || '';
     const yearName = exam.academic_years?.year_name || 'N/A';
 
-    const formattedDate = format(new Date(exam.exam_date), 'MMM dd, yyyy');
-    const formattedTime = exam.exam_time
-        ? format(new Date(`2000-01-01T${exam.exam_time}`), 'hh:mm a')
-        : null;
+    const formattedDate = exam.exam_date ? format(new Date(exam.exam_date), 'MMM dd, yyyy') : 'No Date';
 
     const cardClass = `exam-card ${exam.is_published ? 'published' : 'draft'} ${exam.isUpcoming ? 'upcoming' : exam.isPast ? 'past' : ''
         }`;
@@ -27,15 +22,11 @@ export function ExamCard({ exam, onEdit, onDelete, onTogglePublish }: ExamCardPr
     return (
         <div className={cardClass}>
             <div className="card-header">
-                <div className="subject-emoji">{emoji}</div>
-                <div className="subject-name">{exam.subject}</div>
+                <div className="subject-emoji">📝</div>
+                <div className="subject-name">{exam.exam_type || 'Exam'}</div>
             </div>
 
             <h3 className="exam-title">{exam.exam_name}</h3>
-
-            {exam.description && (
-                <p className="exam-description">{exam.description}</p>
-            )}
 
             <div className="exam-meta">
                 <div className="meta-row">
@@ -54,22 +45,6 @@ export function ExamCard({ exam, onEdit, onDelete, onTogglePublish }: ExamCardPr
                 <div className="schedule-item">
                     <span className="schedule-icon">📅</span>
                     <span>{formattedDate}</span>
-                </div>
-                {formattedTime && (
-                    <div className="schedule-item">
-                        <span className="schedule-icon">⏰</span>
-                        <span>{formattedTime}</span>
-                    </div>
-                )}
-                {exam.duration_minutes && (
-                    <div className="schedule-item">
-                        <span className="schedule-icon">⏱️</span>
-                        <span>{exam.duration_minutes} min</span>
-                    </div>
-                )}
-                <div className="schedule-item">
-                    <span className="schedule-icon">💯</span>
-                    <span>{exam.total_marks} marks</span>
                 </div>
             </div>
 

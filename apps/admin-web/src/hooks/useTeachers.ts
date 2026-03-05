@@ -81,7 +81,7 @@ export function useTeachers(): UseTeachersReturn {
         }
 
         if (filters.isActive !== undefined) {
-            filtered = filtered.filter(t => t.is_active === filters.isActive);
+            filtered = filtered.filter((t: any) => t.is_active === filters.isActive);
         }
 
         console.log(`🎯 Filter results: ${filtered.length} teachers`);

@@ -21,7 +21,7 @@ import {
     getMonthName
 } from '../utils/profileUtils';
 
-export function useStudentProfile(studentId?: string) {
+export function useStudentProfile(_studentId?: string) {
     const [profile, setProfile] = useState<StudentProfile | null>(null);
     const [academicHistory, setAcademicHistory] = useState<AcademicRecord[]>([]);
     const [academicStats, setAcademicStats] = useState<OverallAcademicStats | null>(null);
@@ -184,7 +184,6 @@ export function useStudentProfile(studentId?: string) {
         // Calculate subject-wise performance
         const subjectPerformance: SubjectPerformance[] = Object.entries(subjectGroups).map(
             ([subject, subjectRecords]) => {
-                const percentages = subjectRecords.map(r => r.percentage);
                 const marks = subjectRecords.map(r => r.marks_obtained);
 
                 // Count grades

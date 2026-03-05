@@ -18,7 +18,7 @@ export function MarksTable({ marks, onEdit, onDelete }: Props) {
     const filteredMarks = marks.filter(mark =>
         mark.student?.full_name?.toLowerCase().includes(search.toLowerCase()) ||
         mark.student?.registration_number?.toLowerCase().includes(search.toLowerCase()) ||
-        mark.subject?.toLowerCase().includes(search.toLowerCase())
+        mark.subjects?.subject_name?.toLowerCase().includes(search.toLowerCase())
     );
 
     const sortedMarks = [...filteredMarks].sort((a, b) => {
@@ -32,7 +32,7 @@ export function MarksTable({ marks, onEdit, onDelete }: Props) {
                 comparison = (a.percentage || 0) - (b.percentage || 0);
                 break;
             case 'grade':
-                comparison = a.grade.localeCompare(b.grade);
+                comparison = (a.grade || '').localeCompare(b.grade || '');
                 break;
         }
 
@@ -121,8 +121,8 @@ export function MarksTable({ marks, onEdit, onDelete }: Props) {
                                     {mark.student?.full_name || 'Unknown'}
                                 </td>
                                 <td className="subject-cell">
-                                    <span className="subject-emoji">{getSubjectEmoji(mark.subject || '')}</span>
-                                    {mark.subject}
+                                    <span className="subject-emoji">{getSubjectEmoji(mark.subjects?.subject_name || '')}</span>
+                                    {mark.subjects?.subject_name || 'N/A'}
                                 </td>
                                 <td className="marks-cell">
                                     {formatMarksDisplay(mark.marks_obtained || 0, mark.max_marks || 100)}
@@ -133,9 +133,9 @@ export function MarksTable({ marks, onEdit, onDelete }: Props) {
                                 <td>
                                     <span
                                         className="grade-badge"
-                                        style={{ backgroundColor: getGradeColor(mark.grade) }}
+                                        style={{ backgroundColor: getGradeColor(mark.grade || 'C') }}
                                     >
-                                        {mark.grade}
+                                        {mark.grade || '--'}
                                     </span>
                                 </td>
                                 <td className="remarks-cell">
