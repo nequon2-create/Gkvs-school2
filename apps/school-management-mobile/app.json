@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Gkvs school",
-    "slug": "school-management-mobile",
+    "slug": "gkvs-school",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo.jpeg",
@@ -17,7 +17,10 @@
         "foregroundImage": "./assets/images/logo.jpeg"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -45,6 +48,12 @@
     ],
     "experiments": {
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5f8f2e08-5350-44e5-b1e1-6c95f345ddc7"
+      }
+    },
+    "owner": "nequons-organization"
   }
 }
