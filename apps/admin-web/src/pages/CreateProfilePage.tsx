@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { DashboardLayout } from '../components/layouts';
 import { BackButton } from '../components/common';
 import {
     ProfileTypeToggle,
@@ -74,61 +73,59 @@ export function CreateProfilePage() {
     };
 
     return (
-        <DashboardLayout>
-            <div className="create-profile-page">
-                {/* Header */}
-                <header className="page-header animate-fade-in">
-                    <div>
-                        <BackButton to="/dashboard" />
-                        <h1 className="page-title">Create Profile</h1>
-                        <p className="page-subtitle">Add new student or teacher to the system</p>
-                    </div>
-                </header>
-
-                {/* Success Message */}
-                {success && (
-                    <div className="success-banner animate-slide-in">
-                        <svg
-                            className="success-icon"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                            width="20"
-                            height="20"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M5 13l4 4L19 7"
-                            />
-                        </svg>
-                        <span>{successMessage}</span>
-                    </div>
-                )}
-
-                {/* Profile Type Toggle */}
-                <ProfileTypeToggle activeType={activeType} onTypeChange={setActiveType} />
-
-                {/* Active Form */}
-                <div className="form-container">
-                    {activeType === 'student' ? (
-                        <StudentProfileForm
-                            onSubmit={handleStudentSubmit}
-                            academicYears={academicYears}
-                            classes={classes}
-                            loading={submitting}
-                            loadingYears={loadingYears}
-                            loadingClasses={loadingClasses}
-                        />
-                    ) : (
-                        <TeacherProfileForm
-                            onSubmit={handleTeacherSubmit}
-                            loading={submitting}
-                        />
-                    )}
+        <div className="create-profile-page">
+            {/* Header */}
+            <header className="page-header animate-fade-in">
+                <div>
+                    <BackButton to="/dashboard" />
+                    <h1 className="page-title">Create Profile</h1>
+                    <p className="page-subtitle">Add new student or teacher to the system</p>
                 </div>
+            </header>
+
+            {/* Success Message */}
+            {success && (
+                <div className="success-banner animate-slide-in">
+                    <svg
+                        className="success-icon"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        width="20"
+                        height="20"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 13l4 4L19 7"
+                        />
+                    </svg>
+                    <span>{successMessage}</span>
+                </div>
+            )}
+
+            {/* Profile Type Toggle */}
+            <ProfileTypeToggle activeType={activeType} onTypeChange={setActiveType} />
+
+            {/* Active Form */}
+            <div className="form-container">
+                {activeType === 'student' ? (
+                    <StudentProfileForm
+                        onSubmit={handleStudentSubmit}
+                        academicYears={academicYears}
+                        classes={classes}
+                        loading={submitting}
+                        loadingYears={loadingYears}
+                        loadingClasses={loadingClasses}
+                    />
+                ) : (
+                    <TeacherProfileForm
+                        onSubmit={handleTeacherSubmit}
+                        loading={submitting}
+                    />
+                )}
             </div>
-        </DashboardLayout>
+        </div>
     );
 }

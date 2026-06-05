@@ -102,14 +102,265 @@
 
 .teachers-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: var(--space-4);
+}
+
+/* Layout container for Split Layout */
+.teachers-layout-container {
+    display: flex;
+    gap: var(--space-6);
+    align-items: flex-start;
+    margin-top: var(--space-6);
+}
+
+.teachers-main-content {
+    flex: 3;
+    min-width: 0;
+}
+
+.teachers-leaderboard-sidebar {
+    flex: 2;
+    min-width: 320px;
+    position: sticky;
+    top: var(--space-6);
+}
+
+/* Leaderboard Card Styles */
+.leaderboard-card {
+    background: var(--surface-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-2xl);
+    padding: var(--space-6);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+}
+
+.leaderboard-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.leaderboard-title {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.leaderboard-subtitle {
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    margin: var(--space-1) 0 0 0;
+}
+
+.leaderboard-month-badge {
+    padding: var(--space-1) var(--space-3);
+    background: var(--primary-blue-light);
+    color: var(--primary-blue);
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    text-transform: uppercase;
+}
+
+.leaderboard-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    max-height: 600px;
+    overflow-y: auto;
+    padding-right: var(--space-2);
+}
+
+.leaderboard-list::-webkit-scrollbar {
+    width: 6px;
+}
+.leaderboard-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+.leaderboard-list::-webkit-scrollbar-thumb {
+    background-color: var(--gray-200);
+    border-radius: var(--radius-full);
+}
+
+.leaderboard-empty {
+    text-align: center;
+    padding: var(--space-8) 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+
+.leaderboard-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-xl);
+    background: var(--gray-50);
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.leaderboard-item:hover {
+    background: var(--surface-white);
+    border-color: var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.leaderboard-rank-col {
+    width: 28px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.rank-medal {
+    font-size: var(--text-xl);
+}
+
+.rank-number {
+    font-size: var(--text-sm);
+    font-weight: var(--font-bold);
+    color: var(--text-tertiary);
+    background: var(--gray-200);
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.leaderboard-item.rank-1 {
+    background: linear-gradient(135deg, rgba(253, 230, 138, 0.15) 0%, rgba(251, 191, 36, 0.05) 100%);
+    border-color: rgba(251, 191, 36, 0.2);
+}
+.leaderboard-item.rank-2 {
+    background: linear-gradient(135deg, rgba(243, 244, 246, 0.4) 0%, rgba(156, 163, 175, 0.05) 100%);
+    border-color: rgba(156, 163, 175, 0.2);
+}
+.leaderboard-item.rank-3 {
+    background: linear-gradient(135deg, rgba(255, 237, 213, 0.2) 0%, rgba(217, 119, 6, 0.05) 100%);
+    border-color: rgba(217, 119, 6, 0.15);
+}
+
+.leaderboard-avatar-col {
+    flex-shrink: 0;
+}
+
+.leaderboard-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-full);
+    object-fit: cover;
+    border: 2px solid var(--surface-white);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.leaderboard-avatar-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, var(--primary-blue), #2563eb);
+    color: white;
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--surface-white);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.leaderboard-info-col {
+    flex: 1;
+    min-width: 0;
+}
+
+.leaderboard-info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+    gap: var(--space-2);
+}
+
+.leaderboard-name {
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.leaderboard-rating {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: var(--text-xs);
+    font-weight: var(--font-bold);
+    color: #d97706;
+}
+
+.leaderboard-rating .star {
+    color: #f59e0b;
+}
+
+.leaderboard-rating .avg {
+    color: var(--text-primary);
+}
+
+.leaderboard-rating .count {
+    color: var(--text-tertiary);
+    font-weight: var(--font-normal);
+}
+
+.no-ratings-text {
+    font-size: var(--text-xxs);
+    color: var(--text-tertiary);
+    background: var(--gray-200);
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+}
+
+.leaderboard-progress-bg {
+    height: 6px;
+    background: var(--gray-200);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.leaderboard-progress-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    background: linear-gradient(90deg, #f59e0b 0%, #10b981 100%);
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Responsive */
 @media (max-width: 1024px) {
     .teachers-page {
         padding: var(--space-6);
+    }
+
+    .teachers-layout-container {
+        flex-direction: column;
+    }
+
+    .teachers-main-content,
+    .teachers-leaderboard-sidebar {
+        flex: none;
+        width: 100%;
+    }
+
+    .teachers-leaderboard-sidebar {
+        position: static;
+        min-width: 0;
     }
 
     .teachers-grid {

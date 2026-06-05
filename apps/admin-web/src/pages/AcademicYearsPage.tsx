@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { Plus, AlertCircle } from 'lucide-react';
-import { DashboardLayout } from '../components/layouts';
 import { BackButton } from '../components/common';
 import {
     AcademicYearsList,
@@ -93,84 +92,82 @@ export function AcademicYearsPage() {
     };
 
     return (
-        <DashboardLayout>
-            <div className="academic-years-page">
-                {/* Header */}
-                <header className="page-header animate-fade-in">
-                    <div>
-                        <BackButton to="/dashboard" />
-                        <h1 className="page-title">Academic Years</h1>
-                        <p className="page-subtitle">Manage school academic years and sessions</p>
-                    </div>
-                    <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-                        <Plus size={20} />
-                        <span>Add New Year</span>
-                    </button>
-                </header>
+        <div className="academic-years-page">
+            {/* Header */}
+            <header className="page-header animate-fade-in">
+                <div>
+                    <BackButton to="/dashboard" />
+                    <h1 className="page-title">Academic Years</h1>
+                    <p className="page-subtitle">Manage school academic years and sessions</p>
+                </div>
+                <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+                    <Plus size={20} />
+                    <span>Add New Year</span>
+                </button>
+            </header>
 
-                {/* Error State */}
-                {error && (
-                    <div className="error-banner">
-                        <AlertCircle size={20} />
-                        <span>{error}</span>
-                    </div>
-                )}
+            {/* Error State */}
+            {error && (
+                <div className="error-banner">
+                    <AlertCircle size={20} />
+                    <span>{error}</span>
+                </div>
+            )}
 
-                {/* Search and Filter */}
-                {!loading && years.length > 0 && (
-                    <SearchAndFilter
-                        onSearchChange={setSearchTerm}
-                        onFilterChange={setFilterStatus}
-                        activeFilter={filterStatus}
-                    />
-                )}
-
-                {/* Years List */}
-                <AcademicYearsList
-                    years={filteredYears}
-                    loading={loading}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    onSetCurrent={handleSetCurrent}
+            {/* Search and Filter */}
+            {!loading && years.length > 0 && (
+                <SearchAndFilter
+                    onSearchChange={setSearchTerm}
+                    onFilterChange={setFilterStatus}
+                    activeFilter={filterStatus}
                 />
+            )}
 
-                {/* Form Modal */}
-                {showForm && (
-                    <AcademicYearForm
-                        year={editingYear}
-                        onSubmit={handleCreateOrUpdate}
-                        onCancel={handleCloseForm}
-                        loading={formLoading}
-                    />
-                )}
+            {/* Years List */}
+            <AcademicYearsList
+                years={filteredYears}
+                loading={loading}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onSetCurrent={handleSetCurrent}
+            />
 
-                {/* Delete Confirmation */}
-                {deleteConfirm && (
-                    <div className="confirm-overlay" onClick={() => setDeleteConfirm(null)}>
-                        <div className="confirm-dialog animate-scale-in" onClick={(e) => e.stopPropagation()}>
-                            <h3 className="confirm-title">Delete Academic Year?</h3>
-                            <p className="confirm-message">
-                                Are you sure you want to delete <strong>{deleteConfirm.year_name}</strong>?
-                                This action cannot be undone.
-                            </p>
-                            <div className="confirm-actions">
-                                <button
-                                    className="btn btn-secondary"
-                                    onClick={() => setDeleteConfirm(null)}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    className="btn btn-danger"
-                                    onClick={confirmDelete}
-                                >
-                                    Delete
-                                </button>
-                            </div>
+            {/* Form Modal */}
+            {showForm && (
+                <AcademicYearForm
+                    year={editingYear}
+                    onSubmit={handleCreateOrUpdate}
+                    onCancel={handleCloseForm}
+                    loading={formLoading}
+                />
+            )}
+
+            {/* Delete Confirmation */}
+            {deleteConfirm && (
+                <div className="confirm-overlay" onClick={() => setDeleteConfirm(null)}>
+                    <div className="confirm-dialog animate-scale-in" onClick={(e) => e.stopPropagation()}>
+                        <h3 className="confirm-title">Delete Academic Year?</h3>
+                        <p className="confirm-message">
+                            Are you sure you want to delete <strong>{deleteConfirm.year_name}</strong>?
+                            This action cannot be undone.
+                        </p>
+                        <div className="confirm-actions">
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => setDeleteConfirm(null)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="btn btn-danger"
+                                onClick={confirmDelete}
+                            >
+                                Delete
+                            </button>
                         </div>
                     </div>
-                )}
-            </div>
-        </DashboardLayout>
+                </div>
+            )}
+        </div>
     );
 }

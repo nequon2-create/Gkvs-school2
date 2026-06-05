@@ -405,6 +405,7 @@ export type Database = {
                     teacher_id: string | null
                     title: string
                     updated_at: string | null
+                    student_ids: string[] | null
                 }
                 Insert: {
                     attachments?: string[] | null
@@ -417,6 +418,7 @@ export type Database = {
                     teacher_id?: string | null
                     title: string
                     updated_at?: string | null
+                    student_ids?: string[] | null
                 }
                 Update: {
                     attachments?: string[] | null
@@ -429,6 +431,7 @@ export type Database = {
                     teacher_id?: string | null
                     title?: string
                     updated_at?: string | null
+                    student_ids?: string[] | null
                 }
                 Relationships: [
                     {

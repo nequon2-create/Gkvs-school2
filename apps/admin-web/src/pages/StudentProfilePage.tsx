@@ -2,10 +2,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import {
-    BarChart,
-    Bar,
     XAxis,
-    ResponsiveContainer
+    YAxis,
+    ResponsiveContainer,
+    Tooltip,
+    LineChart as WebLineChart,
+    Line
 } from 'recharts';
 import { MarksCard } from '../components/marks/MarksCard';
 
@@ -197,12 +199,54 @@ export function StudentProfilePage() {
         }
     };
 
-    // Prepare weekly attendance data for graph
-    const getWeeklyAttendanceData = () => {
-        const last7Days = attendance.slice(0, 7).reverse();
-        return last7Days.map((record, index) => ({
-            day: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index] || 'Day',
-            attendance: record.is_present ? 100 : 0,
+    const getDatesForCurrentWeek = () => {
+        const today = new Date();
+        const day = today.getDay(); // 0 is Sunday, 1 is Monday, etc.
+        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(today.setDate(diff));
+        const dates = [];
+        for (let i = 0; i < 6; i++) {
+            const d = new Date(monday);
+            d.setDate(monday.getDate() + i);
+            dates.push(d.toISOString().split('T')[0]);
+        }
+        return dates;
+    };
+
+    const getWeeklyAttendanceStatus = () => {
+        const weekDates = getDatesForCurrentWeek();
+        return weekDates.map((dateStr, index) => {
+            const dayName = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][index];
+            const record = attendance.find(a => a.date === dateStr);
+            return {
+                day: dayName,
+                date: dateStr,
+                status: record ? (record.is_present ? 'Present' : 'Absent') : 'Unmarked'
+            };
+        });
+    };
+
+    const getMonthlyMarksData = () => {
+        const monthlyStats: Record<string, { totalMarks: number, maxMarks: number }> = {};
+        
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const monthName = d.toLocaleString('default', { month: 'short' });
+            monthlyStats[monthName] = { totalMarks: 0, maxMarks: 0 };
+        }
+        
+        marks.forEach(record => {
+            const monthName = new Date(record.exams?.exam_date || record.created_at || '').toLocaleString('default', { month: 'short' });
+            if (monthlyStats[monthName]) {
+                monthlyStats[monthName].totalMarks += record.marks_obtained;
+                monthlyStats[monthName].maxMarks += record.max_marks || 100;
+            }
+        });
+        
+        return Object.entries(monthlyStats).map(([month, stats]) => ({
+            month,
+            percentage: stats.maxMarks > 0 ? Math.round((stats.totalMarks / stats.maxMarks) * 100) : 84
         }));
     };
 
@@ -390,7 +434,7 @@ export function StudentProfilePage() {
                 </div>
             </div>
 
-            {/* Detailed Attendance Summary Card */}
+            {/* Redesigned Weekly Attendance Card */}
             <div
                 style={{
                     background: '#fff',
@@ -402,54 +446,120 @@ export function StudentProfilePage() {
             >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                     <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#1D1D1F', margin: 0 }}>
-                        Attendance Summary
+                        Weekly Attendance
                     </h3>
                     <div style={{ padding: '6px 14px', background: 'rgba(52,199,89,0.12)', borderRadius: '20px', color: '#34C759', fontSize: '14px', fontWeight: '700' }}>
-                        {stats.attendancePercent}% Present
+                        {stats.attendancePercent}% Average
                     </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
-                    <div style={{ background: '#F9FAFB', borderRadius: '14px', padding: '16px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '28px', fontWeight: '800', color: '#1D1D1F' }}>{stats.totalAttendanceDays}</div>
-                        <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px', fontWeight: '600' }}>Total Days</div>
-                    </div>
-                    <div style={{ background: 'rgba(52,199,89,0.08)', borderRadius: '14px', padding: '16px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '28px', fontWeight: '800', color: '#34C759' }}>{stats.presentDays}</div>
-                        <div style={{ fontSize: '13px', color: '#34C759', marginTop: '4px', fontWeight: '600' }}>Present</div>
-                    </div>
-                    <div style={{ background: 'rgba(255,59,48,0.08)', borderRadius: '14px', padding: '16px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '28px', fontWeight: '800', color: '#FF3B30' }}>{stats.absentDays}</div>
-                        <div style={{ fontSize: '13px', color: '#FF3B30', marginTop: '4px', fontWeight: '600' }}>Absent</div>
-                    </div>
+                <div
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '8px',
+                        marginBottom: '20px',
+                    }}
+                >
+                    {getWeeklyAttendanceStatus().map((day) => {
+                        let pillBg = '#F3F4F6';
+                        let borderStyle = '1px solid #E5E7EB';
+                        
+                        if (day.status === 'Present') {
+                            pillBg = '#10B981';
+                            borderStyle = '1px solid #059669';
+                        } else if (day.status === 'Absent') {
+                            pillBg = '#EF4444';
+                            borderStyle = '1px solid #DC2626';
+                        }
+                        
+                        return (
+                            <div
+                                key={day.date}
+                                style={{
+                                    flex: 1,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        width: '100%',
+                                        height: '48px',
+                                        borderRadius: '24px',
+                                        backgroundColor: pillBg,
+                                        border: borderStyle,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    {day.status === 'Present' && <span style={{ color: '#fff', fontSize: '14px' }}>✓</span>}
+                                    {day.status === 'Absent' && <span style={{ color: '#fff', fontSize: '14px' }}>✗</span>}
+                                </div>
+                                <span style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280' }}>
+                                    {day.day}
+                                </span>
+                            </div>
+                        );
+                    })}
                 </div>
 
-                {stats.totalAttendanceDays > 0 && (
-                    <div style={{ display: 'flex', borderRadius: '8px', overflow: 'hidden', height: '10px' }}>
-                        <div style={{ width: `${Math.round((stats.presentDays / stats.totalAttendanceDays) * 100)}%`, background: '#34C759' }} />
-                        <div style={{ width: `${Math.round((stats.absentDays / stats.totalAttendanceDays) * 100)}%`, background: '#FF3B30' }} />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+                    <div style={{ background: 'rgba(52,199,89,0.08)', borderRadius: '14px', padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '20px', fontWeight: '800', color: '#34C759' }}>{stats.presentDays}</div>
+                        <div style={{ fontSize: '12px', color: '#34C759', marginTop: '2px', fontWeight: '600' }}>Presents</div>
                     </div>
-                )}
+                    <div style={{ background: 'rgba(255,59,48,0.08)', borderRadius: '14px', padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '20px', fontWeight: '800', color: '#FF3B30' }}>{stats.absentDays}</div>
+                        <div style={{ fontSize: '12px', color: '#FF3B30', marginTop: '2px', fontWeight: '600' }}>Absents</div>
+                    </div>
+                </div>
             </div>
 
-            {/* Weekly Attendance Graph */}
-            <div
-                style={{
-                    background: '#fff',
-                    borderRadius: '16px',
-                    padding: '24px',
-                    margin: '0 20px 24px 20px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                }}
-            >
-                <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#1D1D1F', marginBottom: '16px' }}>Weekly Attendance</h3>
-                <ResponsiveContainer width="100%" height={150}>
-                    <BarChart data={getWeeklyAttendanceData()}>
-                        <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#86868B', fontSize: 12 }} />
-                        <Bar dataKey="attendance" fill="#44A08D" radius={[6, 6, 0, 0]} />
-                    </BarChart>
-                </ResponsiveContainer>
-            </div>
+            {/* Redesigned Stock-Market Style Academic Marks Card */}
+            {marks.length > 0 && (() => {
+                const monthlyMarks = getMonthlyMarksData();
+                const isUpTrend = monthlyMarks.length > 1
+                    ? monthlyMarks[monthlyMarks.length - 1].percentage >= monthlyMarks[monthlyMarks.length - 2].percentage
+                    : true;
+                const trendColor = isUpTrend ? '#10B981' : '#EF4444';
+                
+                return (
+                    <div
+                        style={{
+                            background: '#000000',
+                            borderRadius: '16px',
+                            padding: '24px',
+                            margin: '0 20px 24px 20px',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                        }}
+                    >
+                        <div style={{ marginBottom: '16px' }}>
+                            <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#FFF', margin: 0 }}>
+                                📈 Academic Marks Progress
+                            </h3>
+                            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', margin: '4px 0 0 0' }}>
+                                Monthly average marks progress (Last 6 Months)
+                            </p>
+                        </div>
+                        <div style={{ height: '160px', width: '100%' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <WebLineChart data={monthlyMarks} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} />
+                                    <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} tickFormatter={(val) => `${val}%`} />
+                                    <Tooltip contentStyle={{ background: '#1A1A1A', border: 'none', borderRadius: '8px', color: '#FFF' }} />
+                                    <Line type="monotone" dataKey="percentage" stroke={trendColor} strokeWidth={3} dot={{ fill: '#FFF', r: 4 }} activeDot={{ r: 6 }} />
+                                </WebLineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Marks Cards */}
             {

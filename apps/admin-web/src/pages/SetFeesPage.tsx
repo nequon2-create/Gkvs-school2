@@ -65,6 +65,13 @@ export function SetFeesPage() {
     const [selectedClassId, setSelectedClassId] = useState<string>('');
     const [fees, setFees] = useState<FeeBreakdown>(initialFeeState);
 
+    // Whole Class vs Individual Students
+    const [applyTo, setApplyTo] = useState<'class' | 'students'>('class');
+    const [students, setStudents] = useState<any[]>([]);
+    const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+    const [studentSearchQuery, setStudentSearchQuery] = useState<string>('');
+    const [fetchingStudents, setFetchingStudents] = useState(false);
+
     useEffect(() => {
         fetchInitialData();
     }, []);
@@ -72,6 +79,7 @@ export function SetFeesPage() {
     useEffect(() => {
         if (selectedClassId && currentYear) {
             fetchExistingFees();
+            fetchStudents(selectedClassId);
         }
     }, [selectedClassId, currentYear]);
 
@@ -99,6 +107,25 @@ export function SetFeesPage() {
         } catch (error) {
             console.error('Error fetching data:', error);
             setLoading(false);
+        }
+    };
+
+    const fetchStudents = async (classId: string) => {
+        setFetchingStudents(true);
+        try {
+            const { data, error } = await supabase
+                .from('students')
+                .select('id, full_name, roll_number, registration_number')
+                .eq('class_id', classId)
+                .order('roll_number', { ascending: true });
+
+            if (error) throw error;
+            setStudents(data || []);
+            setSelectedStudentIds((data || []).map(s => s.id)); // Default to all selected
+        } catch (error) {
+            console.error('Error fetching students:', error);
+        } finally {
+            setFetchingStudents(false);
         }
     };
 
@@ -179,19 +206,97 @@ export function SetFeesPage() {
     const handleSave = async () => {
         if (!selectedClassId || !currentYear) return;
 
+        const totalAmount = calculateTotal();
+        if (totalAmount === 0) {
+            alert('Please enter at least one fee amount');
+            return;
+        }
+
         setSaving(true);
         try {
-            const { error } = await supabase
-                .from('class_fees')
-                .upsert({
-                    class_id: selectedClassId,
-                    academic_year_id: currentYear.id,
-                    ...fees,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'class_id,academic_year_id' });
+            if (applyTo === 'class') {
+                // Save class fees default structure
+                const { error: classFeeErr } = await supabase
+                    .from('class_fees')
+                    .upsert({
+                        class_id: selectedClassId,
+                        academic_year_id: currentYear.id,
+                        ...fees,
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'class_id,academic_year_id' });
 
-            if (error) throw error;
-            alert('Fees saved successfully!');
+                if (classFeeErr) throw classFeeErr;
+
+                // Update student_fees for all students in class
+                if (students.length > 0) {
+                    const studentIds = students.map(s => s.id);
+                    
+                    const { data: existingStudentFees } = await supabase
+                        .from('student_fees')
+                        .select('student_id, amount_paid')
+                        .in('student_id', studentIds)
+                        .eq('academic_year_id', currentYear.id);
+
+                    const existingFeeMap = new Map(existingStudentFees?.map(sf => [sf.student_id, sf.amount_paid || 0]) || []);
+
+                    const studentFeesToUpsert = studentIds.map(studentId => {
+                        const paidAmount = existingFeeMap.get(studentId) || 0;
+                        const pendingAmount = totalAmount - paidAmount;
+                        return {
+                            student_id: studentId,
+                            academic_year_id: currentYear.id,
+                            total_amount: totalAmount,
+                            amount_paid: paidAmount,
+                            amount_pending: pendingAmount,
+                            updated_at: new Date().toISOString()
+                        };
+                    });
+
+                    const { error: studentFeeErr } = await supabase
+                        .from('student_fees')
+                        .upsert(studentFeesToUpsert, { onConflict: 'student_id,academic_year_id' });
+
+                    if (studentFeeErr) throw studentFeeErr;
+                }
+
+                alert('Class fees saved and applied to all class students successfully!');
+            } else {
+                // Apply to selected individual students only
+                if (selectedStudentIds.length === 0) {
+                    alert('Please select at least one student.');
+                    setSaving(false);
+                    return;
+                }
+
+                const { data: existingStudentFees } = await supabase
+                    .from('student_fees')
+                    .select('student_id, amount_paid')
+                    .in('student_id', selectedStudentIds)
+                    .eq('academic_year_id', currentYear.id);
+
+                const existingFeeMap = new Map(existingStudentFees?.map(sf => [sf.student_id, sf.amount_paid || 0]) || []);
+
+                const studentFeesToUpsert = selectedStudentIds.map(studentId => {
+                    const paidAmount = existingFeeMap.get(studentId) || 0;
+                    const pendingAmount = totalAmount - paidAmount;
+                    return {
+                        student_id: studentId,
+                        academic_year_id: currentYear.id,
+                        total_amount: totalAmount,
+                        amount_paid: paidAmount,
+                        amount_pending: pendingAmount,
+                        updated_at: new Date().toISOString()
+                    };
+                });
+
+                const { error: studentFeeErr } = await supabase
+                    .from('student_fees')
+                    .upsert(studentFeesToUpsert, { onConflict: 'student_id,academic_year_id' });
+
+                if (studentFeeErr) throw studentFeeErr;
+
+                alert(`Fees successfully configured and published for ${selectedStudentIds.length} student(s)!`);
+            }
             fetchPublishedFees(); // Refresh table
         } catch (error: any) {
             console.error('Error saving fees:', error);
@@ -273,12 +378,152 @@ export function SetFeesPage() {
                     </div>
 
                     <div className="select-group">
+                        <label>Apply Fees To</label>
+                        <div className="toggle-container" style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                            <button
+                                type="button"
+                                className={`toggle-btn ${applyTo === 'class' ? 'active' : ''}`}
+                                onClick={() => setApplyTo('class')}
+                                style={{
+                                    padding: '8px 16px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #E5E7EB',
+                                    background: applyTo === 'class' ? '#0071E3' : '#FFFFFF',
+                                    color: applyTo === 'class' ? '#FFFFFF' : '#1D1D1F',
+                                    fontWeight: '600',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Whole Class
+                            </button>
+                            <button
+                                type="button"
+                                className={`toggle-btn ${applyTo === 'students' ? 'active' : ''}`}
+                                onClick={() => setApplyTo('students')}
+                                style={{
+                                    padding: '8px 16px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #E5E7EB',
+                                    background: applyTo === 'students' ? '#0071E3' : '#FFFFFF',
+                                    color: applyTo === 'students' ? '#FFFFFF' : '#1D1D1F',
+                                    fontWeight: '600',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Individual Students
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="select-group">
                         <label>Academic Year</label>
                         <div className="current-year-display">
                             {currentYear ? currentYear.year_name : 'No Active Year'} (Current)
                         </div>
                     </div>
                 </div>
+
+                {applyTo === 'students' && (
+                    <div className="student-checklist-section" style={{
+                        marginTop: '20px',
+                        padding: '20px',
+                        background: '#F9FAFB',
+                        borderRadius: '12px',
+                        border: '1px solid #E5E7EB'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#1D1D1F' }}>
+                                Select Students ({selectedStudentIds.length} selected)
+                            </h3>
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', cursor: 'pointer', fontWeight: '500', color: '#4B5563' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedStudentIds.length === students.length && students.length > 0}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setSelectedStudentIds(students.map(s => s.id));
+                                            } else {
+                                                setSelectedStudentIds([]);
+                                            }
+                                        }}
+                                    />
+                                    Select All
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="Filter by name..."
+                                    value={studentSearchQuery}
+                                    onChange={(e) => setStudentSearchQuery(e.target.value)}
+                                    style={{
+                                        padding: '6px 12px',
+                                        borderRadius: '6px',
+                                        border: '1px solid #D1D5DB',
+                                        fontSize: '14px',
+                                        outline: 'none'
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {fetchingStudents ? (
+                            <div style={{ color: '#6B7280', fontSize: '14px' }}>Loading students...</div>
+                        ) : students.length === 0 ? (
+                            <div style={{ color: '#6B7280', fontSize: '14px' }}>No students found in this class.</div>
+                        ) : (
+                            <div className="student-grid" style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                                gap: '12px',
+                                maxHeight: '200px',
+                                overflowY: 'auto',
+                                padding: '8px',
+                                background: '#FFFFFF',
+                                border: '1px solid #E5E7EB',
+                                borderRadius: '8px'
+                            }}>
+                                {students
+                                    .filter(s => s.full_name.toLowerCase().includes(studentSearchQuery.toLowerCase()))
+                                    .map(student => {
+                                        const isSelected = selectedStudentIds.includes(student.id);
+                                        return (
+                                            <label
+                                                key={student.id}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    padding: '8px 12px',
+                                                    background: isSelected ? '#EFF6FF' : '#FFFFFF',
+                                                    border: `1px solid ${isSelected ? '#3B82F6' : '#E5E7EB'}`,
+                                                    borderRadius: '8px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '14px',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            setSelectedStudentIds([...selectedStudentIds, student.id]);
+                                                        } else {
+                                                            setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
+                                                        }
+                                                    }}
+                                                />
+                                                <span style={{ fontWeight: '500', color: '#1D1D1F' }}>
+                                                    {student.roll_number ? `#${student.roll_number} ` : ''}
+                                                    {student.full_name}
+                                                </span>
+                                            </label>
+                                        );
+                                    })}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <div className="fee-form">
                     <div className="form-header">

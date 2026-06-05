@@ -33,8 +33,10 @@ const HomeworkPage = lazy(() => import('./pages/HomeworkPage').then(m => ({ defa
 const BillingPage = lazy(() => import('./pages/BillingPage').then(m => ({ default: m.BillingPage })));
 const SetFeesPage = lazy(() => import('./pages/SetFeesPage').then(m => ({ default: m.SetFeesPage })));
 const CreateReceiptPage = lazy(() => import('./pages/CreateReceiptPage').then(m => ({ default: m.CreateReceiptPage })));
+const FeeReportsPage = lazy(() => import('./pages/FeeReportsPage').then(m => ({ default: m.FeeReportsPage })));
 const DashboardRouteLayout = lazy(() => import('./components/layouts/DashboardRouteLayout').then(m => ({ default: m.DashboardRouteLayout })));
 const PromotionsPage = lazy(() => import('./pages/PromotionsPage').then(m => ({ default: m.PromotionsPage })));
+const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage').then(m => ({ default: m.LeaderboardPage })));
 
 // Mobile App Pages
 const RoleSelectionPage = lazy(() => import('./pages/mobile/RoleSelectionPage').then(m => ({ default: m.RoleSelectionPage })));
@@ -89,11 +91,13 @@ function App() {
               <Route path="/attendance/mark" element={<MarkAttendancePage />} />
               <Route path="/exams" element={<ExamsPage />} />
               <Route path="/marks" element={<MarksPage />} />
+              <Route path="/leaderboard" element={<LeaderboardPage />} />
               <Route path="/homework" element={<HomeworkPage />} />
               <Route path="/certification" element={<CertificationPage />} />
               <Route path="/billing" element={<BillingPage />} />
               <Route path="/billing/set-fees" element={<SetFeesPage />} />
               <Route path="/billing/create-receipt" element={<CreateReceiptPage />} />
+              <Route path="/billing/reports" element={<FeeReportsPage />} />
               <Route path="/events" element={<CalendarPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/promotions" element={<PromotionsPage />} />

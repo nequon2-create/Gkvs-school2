@@ -14,6 +14,8 @@ import TeacherClassListScreen from '../screens/teacher/TeacherClassListScreen';
 import TeacherStudentListScreen from '../screens/teacher/TeacherStudentListScreen';
 import StudentProfileScreen from '../screens/teacher/StudentProfileScreen';
 import ReceiptsScreen from '../screens/parent/ReceiptsScreen';
+import ParentHomeworkScreen from '../screens/parent/HomeworkScreen';
+import TeacherRatingsLeaderboardScreen from '../screens/teacher/TeacherRatingsLeaderboardScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -47,11 +49,13 @@ export default function AppNavigator() {
                         <Stack.Screen name="TeacherClassList" component={TeacherClassListScreen} />
                         <Stack.Screen name="TeacherStudentList" component={TeacherStudentListScreen} />
                         <Stack.Screen name="StudentProfile" component={StudentProfileScreen} />
+                        <Stack.Screen name="TeacherRatingsLeaderboard" component={TeacherRatingsLeaderboardScreen} />
                     </Stack.Group>
                 ) : (
                     <Stack.Group>
                         <Stack.Screen name="ParentTabs" component={ParentTabNavigator} />
                         <Stack.Screen name="Receipts" component={ReceiptsScreen} />
+                        <Stack.Screen name="ParentHomework" component={ParentHomeworkScreen} />
                     </Stack.Group>
                 )}
             </Stack.Navigator>

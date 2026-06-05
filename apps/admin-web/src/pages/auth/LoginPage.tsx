@@ -112,6 +112,12 @@ export function LoginPage() {
                     <p className="help-text">
                         <strong>Need help?</strong> Contact your system administrator.
                     </p>
+                    <div className="nequon-branding">
+                        <span>Powered by </span>
+                        <a href="https://nequon.com" target="_blank" rel="noopener noreferrer" className="nequon-link">
+                            Nequon
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>

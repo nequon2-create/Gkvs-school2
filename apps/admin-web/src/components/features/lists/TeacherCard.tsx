@@ -5,12 +5,14 @@ import './TeacherCard.css';
 
 interface TeacherCardProps {
     teacher: TeacherListItem;
+    rating?: number;
+    reviewsCount?: number;
     onView?: (teacher: TeacherListItem) => void;
     onEdit?: (teacher: TeacherListItem) => void;
     onDelete?: (teacher: TeacherListItem) => void;
 }
 
-export function TeacherCard({ teacher, onView, onEdit, onDelete }: TeacherCardProps) {
+export function TeacherCard({ teacher, rating, reviewsCount, onView, onEdit, onDelete }: TeacherCardProps) {
     const navigate = useNavigate();
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -50,7 +52,16 @@ export function TeacherCard({ teacher, onView, onEdit, onDelete }: TeacherCardPr
                 </div>
                 <div className="teacher-info">
                     <h3 className="teacher-name">{teacher.full_name}</h3>
-                    <p className="teacher-reg">{teacher.registration_number}</p>
+                    <div className="teacher-meta-row">
+                        <span className="teacher-reg">{teacher.registration_number}</span>
+                        {rating !== undefined && rating > 0 && (
+                            <span className="teacher-card-rating">
+                                <span className="star-icon">★</span>
+                                <span className="rating-val">{rating.toFixed(1)}</span>
+                                <span className="reviews-count">({reviewsCount})</span>
+                            </span>
+                        )}
+                    </div>
                 </div>
                 {teacher.qualification && (
                     <div className="teacher-qualification">

@@ -1117,6 +1117,110 @@ export function SettingsPage() {
                         Backup Database
                     </button>
                 </div>
+
+                {/* ========================================= */}
+                {/* SYSTEM & CREDITS */}
+                {/* ========================================= */}
+                <div
+                    style={{
+                        background: 'var(--surface-white)',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: '24px',
+                        padding: '40px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                    }}
+                >
+                    <h2
+                        style={{
+                            fontSize: '24px',
+                            fontWeight: '700',
+                            color: 'var(--text-primary)',
+                            marginBottom: '28px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                        }}
+                    >
+                        <span style={{ fontSize: '28px' }}>💻</span> System & Credits
+                    </h2>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                        <div>
+                            <div style={{ fontSize: '13px', fontWeight: '600', color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                                Application Version
+                            </div>
+                            <div style={{ fontSize: '17px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                                v1.0.0 (Production Release)
+                            </div>
+                        </div>
+
+                        <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '24px' }}>
+                            <div style={{ fontSize: '13px', fontWeight: '600', color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '16px' }}>
+                                Product Architecture & Development
+                            </div>
+                            
+                            <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '24px', 
+                                background: '#09090b', 
+                                border: '1px solid #27272a',
+                                padding: '28px', 
+                                borderRadius: '20px',
+                                flexWrap: 'wrap'
+                            }}>
+                                <img 
+                                    src="/nequon_logo.jpg" 
+                                    alt="Nequon Logo" 
+                                    style={{ 
+                                        width: '80px', 
+                                        height: '80px', 
+                                        borderRadius: '16px',
+                                        objectFit: 'cover',
+                                        border: '1px solid #3f3f46'
+                                    }} 
+                                />
+                                <div style={{ flex: 1, minWidth: '250px' }}>
+                                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#ffffff', marginBottom: '4px', letterSpacing: '0.5px' }}>
+                                        NEQUON
+                                    </div>
+                                    <div style={{ fontSize: '14px', fontWeight: '600', color: '#a1a1aa', marginBottom: '8px' }}>
+                                        Next-Gen Software Engineering & Automation
+                                    </div>
+                                    <div style={{ fontSize: '13px', color: '#71717a', lineHeight: '1.5' }}>
+                                        We architect and build premium, high-scale web and mobile platforms that power modern organizations.
+                                    </div>
+                                </div>
+                                <a 
+                                    href="https://nequon.com" 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        padding: '14px 28px',
+                                        background: '#ffffff',
+                                        color: '#09090b',
+                                        borderRadius: '12px',
+                                        fontSize: '15px',
+                                        fontWeight: '700',
+                                        textDecoration: 'none',
+                                        transition: 'all 0.2s',
+                                        boxShadow: '0 4px 12px rgba(255,255,255,0.1)'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                        e.currentTarget.style.boxShadow = '0 6px 20px rgba(255,255,255,0.15)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(255,255,255,0.1)';
+                                    }}
+                                >
+                                    Visit Website
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {isEditSchoolModalOpen && (

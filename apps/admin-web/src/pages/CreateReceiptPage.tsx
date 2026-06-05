@@ -56,7 +56,7 @@ export function CreateReceiptPage() {
         { id: 6, label_kn: 'ವೈದ್ಯಕೀಯ ಶುಲ್ಕ', label_en: 'Medical Fee', amount: 0 },
         { id: 7, label_kn: 'ಪ್ರಯೋಗಶಾಲಾ ಶುಲ್ಕ', label_en: 'Laboratory Fee', amount: 0 },
         { id: 8, label_kn: 'ಶ್ರವಣ-ದೃಶ್ಯ ಶಿಕ್ಷಣ ಶುಲ್ಕ', label_en: 'AVE Fee', amount: 0 },
-        { id: 9, label_kn: 'ವಿದ್ಯಾರ್ಥಿ ಕ್ಷೇಮಾಭಿವೃದ್ಧಿ ನಿಧಿ', label_en: 'SWF', amount: 0 },
+        { id: 9, label_kn: 'ವید್ಯಾರ್ಥಿ ಕ್ಷೇಮಾಭಿವೃದ್ಧಿ ನಿಧಿ', label_en: 'SWF', amount: 0 },
         { id: 10, label_kn: 'ಉಾಧಯಾಯರ ಕಲ್ಯಾಣ ನಿಧಿ', label_en: 'TBF', amount: 0 },
         { id: 11, label_kn: 'ಪರೀಕ್ಷಾ ಶುಲ್ಕ', label_en: 'Examination Fee', amount: 0 },
         { id: 12, label_kn: 'ದಂಡ', label_en: 'Fines', amount: 0 },
@@ -187,7 +187,7 @@ export function CreateReceiptPage() {
                 <div className="header-actions">
                     <button className="print-save-btn" onClick={handleSaveAndPrint} disabled={saving}>
                         <Printer size={20} />
-                        {saving ? 'Saving...' : 'Print Receipt'}
+                        {saving ? 'Creating...' : 'Submit & Print'}
                     </button>
                 </div>
             </div>
@@ -336,6 +336,32 @@ export function CreateReceiptPage() {
                     <div className="total-summary">
                         <span>TOTAL:</span>
                         <span className="amount-text">₹{totalAmount.toLocaleString()}</span>
+                    </div>
+                    <div style={{ marginTop: '24px', padding: '0 8px' }}>
+                        <button
+                            className="print-save-btn-bottom"
+                            onClick={handleSaveAndPrint}
+                            disabled={saving}
+                            style={{
+                                width: '100%',
+                                padding: '14px 20px',
+                                background: 'linear-gradient(135deg, #0071E3, #0055B3)',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '12px',
+                                fontSize: '15px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                boxShadow: '0 4px 12px rgba(0, 113, 227, 0.2)'
+                            }}
+                        >
+                            <Printer size={18} />
+                            {saving ? 'Creating Receipt...' : 'Submit & Print Receipt'}
+                        </button>
                     </div>
                 </div>
             </div>

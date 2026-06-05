@@ -270,3 +270,34 @@
         width: 100%;
     }
 }
+
+.teacher-meta-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+}
+
+.teacher-card-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    color: #d97706;
+    background: #fef3c7;
+    padding: 2px 6px;
+    border-radius: var(--radius-md);
+    line-height: 1;
+}
+
+.teacher-card-rating .star-icon {
+    font-size: 11px;
+    color: #f59e0b;
+}
+
+.teacher-card-rating .reviews-count {
+    color: var(--text-secondary);
+    font-weight: var(--font-normal);
+    margin-left: 2px;
+}

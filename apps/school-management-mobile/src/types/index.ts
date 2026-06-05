@@ -120,6 +120,7 @@ export interface Homework {
     due_date: string | null;
     attachments: string[] | null;
     created_at: string | null;
+    student_ids?: string[] | null;
 }
 
 export interface Notification {
@@ -155,15 +156,6 @@ export interface FeeReceipt {
     payment_status: 'Paid' | 'Partial' | 'Pending';
 }
 
-export interface TeacherRating {
-    id: string;
-    teacher_id: string | null;
-    student_id: string | null;
-    rating: number | null;
-    review: string | null;
-    created_at: string | null;
-}
-
 // Navigation param lists
 export type RootStackParamList = {
     RoleSelection: undefined;
@@ -175,11 +167,14 @@ export type RootStackParamList = {
     TeacherStudentList: { classId: string; className: string };
     StudentProfile: { studentId: string };
     Receipts: { studentId: string };
+    ParentHomework: undefined;
+    TeacherRatingsLeaderboard: undefined;
 };
 
 export type ParentTabParamList = {
     Home: undefined;
     Events: undefined;
+    Leaderboard: undefined;
     Exams: undefined;
     Profile: undefined;
 };
@@ -187,6 +182,17 @@ export type ParentTabParamList = {
 export type TeacherTabParamList = {
     Home: undefined;
     Events: undefined;
+    Leaderboard: undefined;
     Attendance: undefined;
     Profile: undefined;
 };
+
+export interface TeacherRating {
+    id: string;
+    parent_id: string;
+    teacher_id: string;
+    rating: number;
+    comments?: string | null;
+    rating_month: string;
+    created_at: string;
+}

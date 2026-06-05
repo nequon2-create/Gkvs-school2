@@ -34,6 +34,39 @@ export default function AddHomeworkScreen({ route, navigation }: Props) {
     const [imageBase64, setImageBase64] = useState<string | null>(null);
     const [existingAttachments, setExistingAttachments] = useState<string[]>([]);
 
+    // New states for targeted assignment
+    const [assignmentType, setAssignmentType] = useState<'class' | 'individual'>('class');
+    const [classStudents, setClassStudents] = useState<any[]>([]);
+    const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+    const [fetchingStudents, setFetchingStudents] = useState(false);
+
+    useEffect(() => {
+        if (selectedClassId) {
+            fetchClassStudents(selectedClassId);
+        } else {
+            setClassStudents([]);
+            setSelectedStudentIds([]);
+        }
+    }, [selectedClassId]);
+
+    const fetchClassStudents = async (classId: string) => {
+        setFetchingStudents(true);
+        try {
+            const { data, error } = await supabase
+                .from('students')
+                .select('id, full_name, roll_number')
+                .eq('class_id', classId)
+                .order('full_name', { ascending: true });
+
+            if (error) throw error;
+            setClassStudents(data ?? []);
+        } catch (err) {
+            console.error('Error fetching class students:', err);
+        } finally {
+            setFetchingStudents(false);
+        }
+    };
+
     useEffect(() => {
         fetchData();
         // Set subjects from teacher profile
@@ -67,6 +100,13 @@ export default function AddHomeworkScreen({ route, navigation }: Props) {
                 if (hwData.due_date) {
                     setDueDate(new Date(hwData.due_date).toISOString().split('T')[0]);
                 }
+                if (hwData.student_ids && hwData.student_ids.length > 0) {
+                    setAssignmentType('individual');
+                    setSelectedStudentIds(hwData.student_ids);
+                } else {
+                    setAssignmentType('class');
+                    setSelectedStudentIds([]);
+                }
             }
         } else {
             const tomorrow = new Date();
@@ -85,7 +125,7 @@ export default function AddHomeworkScreen({ route, navigation }: Props) {
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'],
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
             quality: 0.7,
             base64: true,
@@ -105,7 +145,7 @@ export default function AddHomeworkScreen({ route, navigation }: Props) {
         }
 
         const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ['images'],
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
             quality: 0.7,
             base64: true,
@@ -128,13 +168,26 @@ export default function AddHomeworkScreen({ route, navigation }: Props) {
             let finalAttachments = [...existingAttachments];
 
             if (imageBase64 && imageUri) {
-                const ext = imageUri.split('.').pop() || 'jpg';
+                let ext = 'jpg';
+                if (imageUri.startsWith('data:')) {
+                    const mime = imageUri.split(';')[0].split(':')[1];
+                    ext = mime.split('/')[1] || 'jpg';
+                } else {
+                    ext = imageUri.split('.').pop()?.split('?')[0] || 'jpg';
+                }
+                ext = ext.toLowerCase();
+
                 const fileName = `hw_${Date.now()}.${ext}`;
                 const filePath = `${user?.id || 'teacher'}/${fileName}`;
 
+                const arrayBuffer = decode(imageBase64);
+                const uploadBody = Platform.OS === 'web' 
+                    ? new Blob([arrayBuffer], { type: `image/${ext}` }) 
+                    : arrayBuffer;
+
                 const { error: uploadError } = await supabase.storage
                     .from('teacher-gallery')
-                    .upload(filePath, decode(imageBase64), { contentType: `image/${ext}` });
+                    .upload(filePath, uploadBody, { contentType: `image/${ext}` });
 
                 if (uploadError) throw new Error('Image Upload Failed: ' + uploadError.message);
 
@@ -161,10 +214,16 @@ export default function AddHomeworkScreen({ route, navigation }: Props) {
                         description: description.trim(),
                         due_date: dueDate || null,
                         attachments: finalAttachments,
+                        student_ids: assignmentType === 'individual' ? selectedStudentIds : null,
                     })
                     .eq('id', editId);
                 if (error) throw error;
             } else {
+                if (assignmentType === 'individual' && selectedStudentIds.length === 0) {
+                    Alert.alert('Selection Required', 'Please select at least one student or choose Entire Class.');
+                    setSubmitting(false);
+                    return;
+                }
                 const { error } = await supabase
                     .from('homework')
                     .insert({
@@ -175,6 +234,7 @@ export default function AddHomeworkScreen({ route, navigation }: Props) {
                         description: description.trim(),
                         due_date: dueDate || null,
                         attachments: finalAttachments,
+                        student_ids: assignmentType === 'individual' ? selectedStudentIds : null,
                     });
                 if (error) throw error;
             }
@@ -264,6 +324,118 @@ export default function AddHomeworkScreen({ route, navigation }: Props) {
                         </ScrollView>
                     </>
                 )}
+
+                {/* Assignment Target Selection */}
+                {selectedClassId ? (
+                    <>
+                        <Text style={styles.label}>Assign To *</Text>
+                        <View style={styles.targetRow}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.targetBtn,
+                                    assignmentType === 'class' && styles.targetBtnActive
+                                ]}
+                                onPress={() => setAssignmentType('class')}
+                            >
+                                <Ionicons 
+                                    name="people" 
+                                    size={18} 
+                                    color={assignmentType === 'class' ? '#FFF' : '#2D7D46'} 
+                                />
+                                <Text style={[
+                                    styles.targetBtnText,
+                                    assignmentType === 'class' && styles.targetBtnTextActive
+                                ]}>Entire Class</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[
+                                    styles.targetBtn,
+                                    assignmentType === 'individual' && styles.targetBtnActive
+                                ]}
+                                onPress={() => setAssignmentType('individual')}
+                            >
+                                <Ionicons 
+                                    name="person" 
+                                    size={18} 
+                                    color={assignmentType === 'individual' ? '#FFF' : '#2D7D46'} 
+                                />
+                                <Text style={[
+                                    styles.targetBtnText,
+                                    assignmentType === 'individual' && styles.targetBtnTextActive
+                                ]}>Specific Students</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {assignmentType === 'individual' && (
+                            <View style={styles.studentListContainer}>
+                                <View style={styles.studentListHeader}>
+                                    <Text style={styles.studentListTitle}>Select Students ({selectedStudentIds.length})</Text>
+                                    <TouchableOpacity 
+                                        onPress={() => {
+                                            if (selectedStudentIds.length === classStudents.length) {
+                                                setSelectedStudentIds([]);
+                                            } else {
+                                                setSelectedStudentIds(classStudents.map(s => s.id));
+                                            }
+                                        }}
+                                        style={styles.selectAllBtn}
+                                    >
+                                        <Text style={styles.selectAllText}>
+                                            {selectedStudentIds.length === classStudents.length ? 'Deselect All' : 'Select All'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {fetchingStudents ? (
+                                    <ActivityIndicator size="small" color="#2D7D46" style={{ marginVertical: 12 }} />
+                                ) : classStudents.length === 0 ? (
+                                    <Text style={styles.emptyStudentsText}>No students found in this class.</Text>
+                                ) : (
+                                    <View style={styles.studentsGrid}>
+                                        {classStudents.map(student => {
+                                            const isSelected = selectedStudentIds.includes(student.id);
+                                            return (
+                                                <TouchableOpacity
+                                                    key={student.id}
+                                                    style={[
+                                                        styles.studentCard,
+                                                        isSelected && styles.studentCardActive
+                                                    ]}
+                                                    onPress={() => {
+                                                        if (isSelected) {
+                                                            setSelectedStudentIds(prev => prev.filter(id => id !== student.id));
+                                                        } else {
+                                                            setSelectedStudentIds(prev => [...prev, student.id]);
+                                                        }
+                                                    }}
+                                                >
+                                                    <View style={styles.studentCheckCircle}>
+                                                        <Ionicons 
+                                                            name={isSelected ? "checkbox" : "square-outline"} 
+                                                            size={18} 
+                                                            color={isSelected ? "#2D7D46" : "#A0AEC0"} 
+                                                        />
+                                                    </View>
+                                                    <View style={{ flex: 1 }}>
+                                                        <Text style={[
+                                                            styles.studentName,
+                                                            isSelected && styles.studentNameActive
+                                                        ]}>
+                                                            {student.full_name}
+                                                        </Text>
+                                                        {student.roll_number && (
+                                                            <Text style={styles.studentRoll}>Roll No: {student.roll_number}</Text>
+                                                        )}
+                                                    </View>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                )}
+                            </View>
+                        )}
+                    </>
+                ) : null}
 
                 {/* Details */}
                 <Text style={styles.label}>Homework Title *</Text>
@@ -396,4 +568,31 @@ const styles = StyleSheet.create({
         position: 'absolute', top: 10, right: 10,
         backgroundColor: '#FFF', borderRadius: 12, padding: 2
     },
+    targetRow: { flexDirection: 'row', gap: 12, marginBottom: 8 },
+    targetBtn: {
+        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+        paddingVertical: 12, borderRadius: 10, backgroundColor: '#EDF2F7', borderWidth: 1, borderColor: '#E2E8F0'
+    },
+    targetBtnActive: { backgroundColor: '#2D7D46', borderColor: '#2D7D46' },
+    targetBtnText: { fontSize: 14, fontWeight: '600', color: '#4A5568' },
+    targetBtnTextActive: { color: '#FFF' },
+    studentListContainer: {
+        backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0',
+        padding: 16, marginTop: 12, marginBottom: 8
+    },
+    studentListHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    studentListTitle: { fontSize: 14, fontWeight: '700', color: '#2D3748' },
+    selectAllBtn: { padding: 4 },
+    selectAllText: { fontSize: 13, fontWeight: '600', color: '#2D7D46' },
+    emptyStudentsText: { fontSize: 13, color: '#A0AEC0', textAlign: 'center', marginVertical: 12 },
+    studentsGrid: { gap: 8 },
+    studentCard: {
+        flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 8,
+        borderWidth: 1, borderColor: '#EDF2F7', backgroundColor: '#FAFAFA'
+    },
+    studentCardActive: { borderColor: '#C6F6D5', backgroundColor: '#F0FDF4' },
+    studentCheckCircle: { justifyContent: 'center', alignItems: 'center' },
+    studentName: { fontSize: 14, fontWeight: '500', color: '#4A5568' },
+    studentNameActive: { color: '#2D7D46', fontWeight: '600' },
+    studentRoll: { fontSize: 11, color: '#718096', marginTop: 1 },
 });

@@ -100,49 +100,153 @@ export function UploadMarksModal({ onClose, onSuccess }: UploadMarksModalProps) 
 
             console.log('📊 Parsed Excel data:', jsonData);
 
-            // Create or get exam
-            const { data: examData, error: examError } = await supabase
+            // Create or get exam (reuse existing to avoid duplicate records)
+            let examData = null;
+            const { data: existingExams, error: fetchExamErr } = await supabase
                 .from('exams')
-                .upsert({
-                    exam_name: selectedExam,
-                    exam_type: selectedExam,
-                    class_id: selectedClass,
-                    academic_year_id: selectedYear,
-                    exam_date: new Date().toISOString().split('T')[0],
-                    is_published: false,
-                })
-                .select()
-                .single();
+                .select('*')
+                .eq('exam_name', selectedExam)
+                .eq('class_id', selectedClass)
+                .eq('academic_year_id', selectedYear)
+                .limit(1);
 
-            if (examError) throw examError;
+            if (fetchExamErr) throw fetchExamErr;
 
-            // Get subject IDs from Supabase
-            const { data: subjectsData } = await supabase
+            if (existingExams && existingExams.length > 0) {
+                examData = existingExams[0];
+                console.log('🔄 Reusing existing exam:', examData);
+            } else {
+                const { data: newExam, error: examError } = await supabase
+                    .from('exams')
+                    .insert({
+                        exam_name: selectedExam,
+                        exam_type: selectedExam,
+                        class_id: selectedClass,
+                        academic_year_id: selectedYear,
+                        exam_date: new Date().toISOString().split('T')[0],
+                        is_published: false,
+                    })
+                    .select()
+                    .single();
+
+                if (examError) throw examError;
+                examData = newExam;
+                console.log('🆕 Created new exam:', examData);
+            }
+
+            // Delete old marks for this exam if any exist to ensure a clean overwrite
+            const { error: deleteError } = await supabase
+                .from('marks')
+                .delete()
+                .eq('exam_id', examData.id);
+            
+            if (deleteError) {
+                console.error('Error removing old marks before upload:', deleteError);
+            }
+
+            // Get subjects for this class to map global codes (KAN-01) to class-specific codes (KAN-06)
+            const { data: classSubjects } = await supabase
                 .from('subjects')
-                .select('id, subject_code')
+                .select('id, subject_name, subject_code')
+                .eq('class_id', selectedClass);
+
+            // Get global fallback subjects
+            const { data: globalSubjects } = await supabase
+                .from('subjects')
+                .select('id, subject_name, subject_code')
+                .is('class_id', null)
                 .in('subject_code', selectedSubjects);
 
-            const subjectMap = new Map(subjectsData?.map((s) => [s.subject_code, s.id]));
+            // Map each selected global subject code to the correct class-specific subject ID
+            const subjectMap = new Map<string, string>();
+            selectedSubjects.forEach(code => {
+                const globalSub = globalSubjects?.find(s => s.subject_code === code);
+                const subMeta = SUBJECTS.find(s => s.code === code);
+                const subName = subMeta ? subMeta.name : '';
+
+                const prefix = code.split('-')[0].toUpperCase();
+                const classSub = classSubjects?.find(s => {
+                    const sPrefix = s.subject_code.split('-')[0].toUpperCase();
+                    const sName = s.subject_name.toLowerCase();
+                    const targetName = subName.toLowerCase();
+                    
+                    return (
+                        sPrefix === prefix ||
+                        sName === targetName ||
+                        sName.includes(targetName) ||
+                        targetName.includes(sName)
+                    );
+                });
+
+                if (classSub) {
+                    subjectMap.set(code, classSub.id);
+                    console.log(`🎯 Mapped subject "${subName}" (${code}) -> Class-specific subject "${classSub.subject_name}" (${classSub.subject_code})`);
+                } else if (globalSub) {
+                    subjectMap.set(code, globalSub.id);
+                    console.log(`⚠️ Mapped subject "${subName}" (${code}) -> Global fallback subject "${globalSub.subject_name}" (${globalSub.subject_code})`);
+                }
+            });
+
+            // Fetch active students in the class for fast lookups and name matching
+            const { data: classStudents, error: studentsFetchErr } = await supabase
+                .from('students')
+                .select('id, registration_number, full_name')
+                .eq('class_id', selectedClass)
+                .eq('is_active', true);
+
+            if (studentsFetchErr) throw studentsFetchErr;
+
+            const regMap = new Map<string, string>();
+            const nameMap = new Map<string, string>();
+
+            (classStudents || []).forEach(st => {
+                if (st.registration_number) {
+                    regMap.set(st.registration_number.trim().toLowerCase(), st.id);
+                }
+                if (st.full_name) {
+                    const normName = st.full_name.trim().toLowerCase().replace(/\s+/g, '');
+                    nameMap.set(normName, st.id);
+                }
+            });
+
+            const skippedRows: string[] = [];
+            let successfulMatches = 0;
 
             // Process each student row
             for (const row of jsonData) {
-                const studentId = row['Student_id'];
-
-                // Find student by registration number
-                const { data: student } = await supabase
-                    .from('students')
-                    .select('id')
-                    .eq('registration_number', studentId)
-                    .single();
-
-                if (!student) {
-                    console.warn(`Student not found: ${studentId}`);
+                const studentIdRaw = row['Student_id'];
+                if (!studentIdRaw) {
+                    skippedRows.push('Row with missing Student_id');
                     continue;
                 }
 
+                const studentIdStr = String(studentIdRaw).trim();
+                const studentIdKey = studentIdStr.toLowerCase().replace(/\s+/g, '');
+
+                // Find student by registration number or name
+                let studentId = regMap.get(studentIdStr.toLowerCase()) || nameMap.get(studentIdKey);
+
+                // Fallback substring name matching
+                if (!studentId) {
+                    const fallbackStudent = (classStudents || []).find(st => {
+                        const dbName = st.full_name.trim().toLowerCase().replace(/\s+/g, '');
+                        return dbName.includes(studentIdKey) || studentIdKey.includes(dbName);
+                    });
+                    if (fallbackStudent) {
+                        studentId = fallbackStudent.id;
+                    }
+                }
+
+                if (!studentId) {
+                    console.warn(`Student not found for row identifier: ${studentIdStr}`);
+                    skippedRows.push(studentIdStr);
+                    continue;
+                }
+
+                successfulMatches++;
+
                 // Insert marks for each subject
                 for (const subjectCode of selectedSubjects) {
-                    // Check for standard code first (e.g., 'KAN-01'), then fallback to old format
                     let marks = row[subjectCode];
 
                     if (marks === undefined || marks === null) {
@@ -158,7 +262,7 @@ export function UploadMarksModal({ onClose, onSuccess }: UploadMarksModalProps) 
 
                         if (subjectId && !isNaN(marksNum)) {
                             const { error: upsertError } = await supabase.from('marks').upsert({
-                                student_id: student.id,
+                                student_id: studentId,
                                 exam_id: examData.id,
                                 subject_id: subjectId,
                                 marks_obtained: marksNum,
@@ -168,7 +272,7 @@ export function UploadMarksModal({ onClose, onSuccess }: UploadMarksModalProps) 
                             }, { onConflict: 'student_id,exam_id,subject_id' });
 
                             if (upsertError) {
-                                console.error(`Error saving mark for ${studentId} in ${subjectCode}:`, upsertError);
+                                console.error(`Error saving mark for student ${studentIdStr} in ${subjectCode}:`, upsertError);
                             }
                         } else if (!subjectId) {
                             console.warn(`Subject ID not found for code: ${subjectCode}`);
@@ -184,7 +288,13 @@ export function UploadMarksModal({ onClose, onSuccess }: UploadMarksModalProps) 
                 .eq('id', examData.id);
 
             console.log('✅ Successfully uploaded marks to Supabase');
-            alert(`Successfully uploaded marks for ${jsonData.length} students`);
+            
+            if (skippedRows.length > 0) {
+                alert(`Uploaded marks for ${successfulMatches} students.\n\n⚠️ Warning: The following ${skippedRows.length} student rows were skipped (not found in this class):\n${skippedRows.join(', ')}`);
+            } else {
+                alert(`Successfully uploaded marks for ${successfulMatches} students`);
+            }
+            
             onSuccess();
         } catch (err) {
             console.error('Error uploading marks:', err);

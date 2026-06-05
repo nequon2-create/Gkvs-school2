@@ -9,6 +9,7 @@ import {
     ActivityIndicator,
     Image,
     ScrollView,
+    Linking,
 } from 'react-native';
 import { supabase } from '../../config/supabase';
 import { useAuthStore } from '../../store/authStore';
@@ -166,7 +167,16 @@ export default function LoginScreen({ route, navigation }: Props) {
                 </TouchableOpacity>
             </View>
 
-            <Text style={styles.footer}>© 2025 Sharana Sirasigi School</Text>
+            <View style={styles.footerContainer}>
+                <Text style={styles.footer}>© 2025 Sharana Sirasigi School</Text>
+                <TouchableOpacity 
+                    onPress={() => Linking.openURL('https://nequon.com')}
+                    activeOpacity={0.7}
+                    style={styles.nequonFooterLink}
+                >
+                    <Text style={styles.nequonFooterText}>Powered by Nequon</Text>
+                </TouchableOpacity>
+            </View>
         </ScrollView>
     );
 }
@@ -303,5 +313,19 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         color: 'rgba(255,255,255,0.4)',
         fontSize: 12,
+    },
+    footerContainer: {
+        marginTop: 16,
+        alignItems: 'center',
+        gap: 6,
+    },
+    nequonFooterLink: {
+        paddingVertical: 4,
+    },
+    nequonFooterText: {
+        color: '#f5a623',
+        fontSize: 12,
+        fontWeight: '600',
+        textDecorationLine: 'underline',
     },
 });

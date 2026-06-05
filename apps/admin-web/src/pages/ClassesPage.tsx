@@ -30,42 +30,52 @@ export function ClassesPage() {
     const [students, setStudents] = useState<Student[]>([]);
     const [className, setClassName] = useState('');
     const [loading, setLoading] = useState(false);
-    const [classCounts, setClassCounts] = useState<{ [key: number]: number }>({});
+    const [dbClasses, setDbClasses] = useState<any[]>([]);
+    const [classCounts, setClassCounts] = useState<{ [key: string]: number }>({});
 
     useEffect(() => {
-        fetchClassCounts();
+        fetchClassesAndCounts();
     }, []);
 
-    const fetchClassCounts = async () => {
-        // First get the current academic year
-        const { data: currentYear } = await supabase
-            .from('academic_years')
-            .select('id')
-            .eq('is_current', true)
-            .single();
-
-        if (!currentYear) return;
-
-        const counts: { [key: number]: number } = {};
-        for (let i = 1; i <= 10; i++) {
-            const { data: classes } = await supabase
-                .from('classes')
+    const fetchClassesAndCounts = async () => {
+        setLoading(true);
+        try {
+            // First get the current academic year
+            const { data: currentYear } = await supabase
+                .from('academic_years')
                 .select('id')
-                .eq('numeric_value', i);
+                .eq('is_current', true)
+                .single();
 
-            if (classes && classes.length > 0) {
-                const { count } = await supabase
-                    .from('students')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('class_id', classes[0].id)
-                    .eq('academic_year_id', currentYear.id)
-                    .eq('is_active', true);
-                counts[i] = count || 0;
-            } else {
-                counts[i] = 0;
+            if (!currentYear) return;
+
+            // Fetch all active classes
+            const { data: classesData } = await supabase
+                .from('classes')
+                .select('id, class_name, section, numeric_value')
+                .eq('is_active', true)
+                .order('numeric_value', { ascending: true });
+
+            if (classesData) {
+                setDbClasses(classesData);
+
+                const counts: { [key: string]: number } = {};
+                for (const cls of classesData) {
+                    const { count } = await supabase
+                        .from('students')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('class_id', cls.id)
+                        .eq('academic_year_id', currentYear.id)
+                        .eq('is_active', true);
+                    counts[cls.id] = count || 0;
+                }
+                setClassCounts(counts);
             }
+        } catch (err) {
+            console.error('Error fetching classes:', err);
+        } finally {
+            setLoading(false);
         }
-        setClassCounts(counts);
     };
 
     const handleSearch = async () => {
@@ -91,25 +101,12 @@ export function ClassesPage() {
         }
     };
 
-    const handleClassClick = async (classNum: number) => {
+    const handleClassClick = async (classId: string, classNameStr: string, section?: string | null) => {
         setLoading(true);
         try {
-            const { data: classes } = await supabase
-                .from('classes')
-                .select('id, class_name, section')
-                .eq('numeric_value', classNum)
-                .limit(1);
-
-            if (!classes || classes.length === 0) {
-                alert(`Class ${classNum} not found`);
-                setLoading(false);
-                return;
-            }
-
-            const classData = classes[0];
-            setSelectedClass(classData.id);
+            setSelectedClass(classId);
             setClassName(
-                `Class ${classData.class_name}${classData.section ? ` - ${classData.section}` : ''}`
+                `Class ${classNameStr}${section ? ` - ${section}` : ''}`
             );
 
             const { data: currentYear } = await supabase
@@ -123,7 +120,7 @@ export function ClassesPage() {
             const { data: studentsData } = await supabase
                 .from('students')
                 .select('id, full_name, registration_number, roll_number, photo_url')
-                .eq('class_id', classData.id)
+                .eq('class_id', classId)
                 .eq('academic_year_id', currentYear.id)
                 .eq('is_active', true)
                 .order('full_name');
@@ -134,6 +131,15 @@ export function ClassesPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const formatClassLabel = (name: string) => {
+        const num = parseInt(name);
+        if (isNaN(num)) return name; // LKG, UKG, etc.
+        if (num === 1) return '1st';
+        if (num === 2) return '2nd';
+        if (num === 3) return '3rd';
+        return `${num}th`;
     };
 
     // Class List View
@@ -304,12 +310,12 @@ export function ClassesPage() {
                     margin: '0 auto',
                 }}
             >
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((classNum, index) => (
+                {dbClasses.map((cls, index) => (
                     <div
-                        key={classNum}
-                        onClick={() => handleClassClick(classNum)}
+                        key={cls.id}
+                        onClick={() => handleClassClick(cls.id, cls.class_name, cls.section)}
                         style={{
-                            background: CLASS_GRADIENTS[index],
+                            background: CLASS_GRADIENTS[index % CLASS_GRADIENTS.length],
                             borderRadius: '24px',
                             padding: '40px 24px',
                             textAlign: 'center',
@@ -347,7 +353,7 @@ export function ClassesPage() {
                                 textShadow: '0 4px 8px rgba(0,0,0,0.2)',
                             }}
                         >
-                            {classNum}
+                            {cls.class_name}
                         </div>
                         <div
                             style={{
@@ -359,14 +365,7 @@ export function ClassesPage() {
                                 marginBottom: '12px',
                             }}
                         >
-                            {classNum === 1
-                                ? '1st'
-                                : classNum === 2
-                                    ? '2nd'
-                                    : classNum === 3
-                                        ? '3rd'
-                                        : `${classNum}th`}{' '}
-                            Class
+                            {formatClassLabel(cls.class_name)} Class
                         </div>
                         <div
                             style={{
@@ -380,7 +379,7 @@ export function ClassesPage() {
                                 backdropFilter: 'blur(10px)',
                             }}
                         >
-                            👥 {classCounts[classNum] || 0} Students
+                            👥 {classCounts[cls.id] || 0} Students
                         </div>
                     </div>
                 ))}

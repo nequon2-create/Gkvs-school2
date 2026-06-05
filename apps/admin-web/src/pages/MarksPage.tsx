@@ -46,8 +46,8 @@ export function MarksPage() {
     const fetchClasses = async () => {
         const { data } = await supabase
             .from('classes')
-            .select('id, class_name, section')
-            .order('class_name');
+            .select('id, class_name, section, numeric_value')
+            .order('numeric_value', { ascending: true });
         setClasses(data || []);
     };
 
@@ -257,37 +257,48 @@ export function MarksPage() {
                     marginBottom: '32px',
                 }}
             >
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((classNum, index) => (
-                    <div
-                        key={classNum}
-                        onClick={() => handleClassClick(classes[index]?.id)}
-                        style={{
-                            background: CLASS_COLORS[index],
-                            borderRadius: '16px',
-                            padding: '32px 20px',
-                            textAlign: 'center',
-                            cursor: 'pointer',
-                            transition: 'transform 0.2s',
-                            border: selectedClass === classes[index]?.id ? '3px solid #0071E3' : 'none',
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
-                        onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                    >
+                {(classes || []).map((cls, index) => {
+                    const formatClassLabel = (name: string) => {
+                        const num = parseInt(name);
+                        if (isNaN(num)) return name;
+                        if (num === 1) return '1st';
+                        if (num === 2) return '2nd';
+                        if (num === 3) return '3rd';
+                        return `${num}th`;
+                    };
+
+                    return (
                         <div
+                            key={cls.id}
+                            onClick={() => handleClassClick(cls.id)}
                             style={{
-                                fontSize: '48px',
-                                fontWeight: '700',
-                                color: '#fff',
-                                marginBottom: '8px',
+                                background: CLASS_COLORS[index % CLASS_COLORS.length],
+                                borderRadius: '16px',
+                                padding: '32px 20px',
+                                textAlign: 'center',
+                                cursor: 'pointer',
+                                transition: 'transform 0.2s',
+                                border: selectedClass === cls.id ? '3px solid #0071E3' : 'none',
                             }}
+                            onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                         >
-                            {classNum}
+                            <div
+                                style={{
+                                    fontSize: '48px',
+                                    fontWeight: '700',
+                                    color: '#fff',
+                                    marginBottom: '8px',
+                                }}
+                            >
+                                {cls.class_name}
+                            </div>
+                            <div style={{ fontSize: '15px', fontWeight: '500', color: '#fff' }}>
+                                {formatClassLabel(cls.class_name)} Class
+                            </div>
                         </div>
-                        <div style={{ fontSize: '15px', fontWeight: '500', color: '#fff' }}>
-                            {classNum === 1 ? '1st' : classNum === 2 ? '2nd' : classNum === 3 ? '3rd' : `${classNum}th`} Class
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
             {/* Filter Section */}

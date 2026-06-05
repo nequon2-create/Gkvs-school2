@@ -13,7 +13,8 @@ import {
     Settings,
     BookOpen,
     CalendarDays,
-    TrendingUp
+    TrendingUp,
+    Trophy
 } from 'lucide-react';
 // Context imports removed since logout was migrated to Settings
 import './Sidebar.css';
@@ -35,6 +36,7 @@ const navigationItems: NavItem[] = [
     { icon: <BookOpen size={20} />, label: 'Homework', path: '/homework' },
     { icon: <FileText size={20} />, label: 'Exams', path: '/exams' },
     { icon: <FileText size={20} />, label: 'Marks', path: '/marks' },
+    { icon: <Trophy size={20} />, label: 'Leaderboard', path: '/leaderboard' },
     { icon: <TrendingUp size={20} />, label: 'Promotions', path: '/promotions' },
     { icon: <Award size={20} />, label: 'Certification', path: '/certification' },
     { icon: <CreditCard size={20} />, label: 'Billing', path: '/billing' },
@@ -79,7 +81,10 @@ export function Sidebar() {
             </nav>
 
             <div className="sidebar-footer">
-                {/* User info and log-out removed per user request (now inside Settings) */}
+                <a href="https://nequon.com" target="_blank" rel="noopener noreferrer" className="sidebar-nequon-link">
+                    <img src="/nequon_logo.jpg" alt="Nequon Logo" className="sidebar-nequon-logo" />
+                    <span className="sidebar-nequon-text">Powered by Nequon</span>
+                </a>
             </div>
         </aside>
     );

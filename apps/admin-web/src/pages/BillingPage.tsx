@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Settings, ReceiptText, ChevronRight } from 'lucide-react';
+import { Settings, ReceiptText, ChevronRight, FileText } from 'lucide-react';
 import './BillingPage.css';
 
 export function BillingPage() {
@@ -51,6 +51,26 @@ export function BillingPage() {
                     </div>
                     <div className="card-footer">
                         <span className="footer-text">Generate Receipt</span>
+                        <ChevronRight size={18} />
+                    </div>
+                </div>
+
+                {/* Fee Reports Card */}
+                <div
+                    className="billing-card"
+                    onClick={() => navigate('/billing/reports')}
+                >
+                    <div className="card-icon-wrapper reports-icon">
+                        <FileText size={32} />
+                    </div>
+                    <div className="card-content">
+                        <h2 className="card-title">Fee Reports</h2>
+                        <p className="card-description">
+                            View overall fee collection statistics, filter by class, search students, send popup alerts, and contact parents via WhatsApp or phone.
+                        </p>
+                    </div>
+                    <div className="card-footer">
+                        <span className="footer-text">View Reports</span>
                         <ChevronRight size={18} />
                     </div>
                 </div>
