@@ -21,12 +21,10 @@ export function TeachersPage() {
 
     const [searchQuery, setSearchQuery] = useState('');
     const [ratings, setRatings] = useState<Record<string, { total: number; count: number }>>({});
-    const [ratingsLoading, setRatingsLoading] = useState(true);
 
     useEffect(() => {
         const fetchRatings = async () => {
             try {
-                setRatingsLoading(true);
                 const currentMonth = new Date().toISOString().substring(0, 7);
                 const { data, error: ratingsError } = await supabase
                     .from('teacher_ratings')
@@ -48,8 +46,6 @@ export function TeachersPage() {
                 setRatings(ratingsMap);
             } catch (err) {
                 console.error('Error fetching teacher ratings:', err);
-            } finally {
-                setRatingsLoading(false);
             }
         };
 

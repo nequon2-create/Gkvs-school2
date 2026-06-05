@@ -43,6 +43,7 @@ interface Mark {
         exam_name: string;
         exam_date: string;
     };
+    created_at?: string;
 }
 
 interface AttendanceRecord {
