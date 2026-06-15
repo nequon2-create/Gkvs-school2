@@ -72,6 +72,11 @@ export function SetFeesPage() {
     const [studentSearchQuery, setStudentSearchQuery] = useState<string>('');
     const [fetchingStudents, setFetchingStudents] = useState(false);
 
+    // Accordion / Overview states
+    const [publishedOverview, setPublishedOverview] = useState<any[]>([]);
+    const [expandedClassIds, setExpandedClassIds] = useState<string[]>([]);
+    const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
+
     useEffect(() => {
         fetchInitialData();
     }, []);
@@ -86,8 +91,18 @@ export function SetFeesPage() {
     useEffect(() => {
         if (currentYear) {
             fetchPublishedFees();
+            fetchPublishedOverview();
         }
     }, [currentYear]);
+
+    // Hook: when exactly one student is selected in individual mode, load their custom structure
+    useEffect(() => {
+        if (applyTo === 'students' && selectedStudentIds.length === 1) {
+            fetchStudentCustomFees(selectedStudentIds[0]);
+        } else {
+            fetchExistingFees();
+        }
+    }, [selectedStudentIds, applyTo]);
 
     const fetchInitialData = async () => {
         try {
@@ -111,17 +126,26 @@ export function SetFeesPage() {
     };
 
     const fetchStudents = async (classId: string) => {
+        if (!currentYear) return;
         setFetchingStudents(true);
         try {
             const { data, error } = await supabase
                 .from('students')
                 .select('id, full_name, roll_number, registration_number')
                 .eq('class_id', classId)
+                .eq('academic_year_id', currentYear.id)
+                .eq('is_active', true)
                 .order('roll_number', { ascending: true });
 
             if (error) throw error;
             setStudents(data || []);
-            setSelectedStudentIds((data || []).map(s => s.id)); // Default to all selected
+            
+            if (editingStudentId) {
+                setSelectedStudentIds([editingStudentId]);
+                setEditingStudentId(null);
+            } else {
+                setSelectedStudentIds((data || []).map(s => s.id)); // Default to all selected
+            }
         } catch (error) {
             console.error('Error fetching students:', error);
         } finally {
@@ -160,8 +184,152 @@ export function SetFeesPage() {
         }
     };
 
+    const fetchPublishedOverview = async () => {
+        if (!currentYear) return;
+        try {
+            const [classesRes, classFeesRes, studentFeesRes, studentsRes] = await Promise.all([
+                supabase.from('classes').select('*').order('numeric_value', { ascending: true }),
+                supabase.from('class_fees').select('*').eq('academic_year_id', currentYear.id),
+                supabase.from('student_fees').select('*').eq('academic_year_id', currentYear.id),
+                supabase.from('students').select('id, full_name, roll_number, class_id').eq('academic_year_id', currentYear.id).eq('is_active', true)
+            ]);
+
+            if (classesRes.error) throw classesRes.error;
+            if (classFeesRes.error) throw classFeesRes.error;
+            if (studentFeesRes.error) throw studentFeesRes.error;
+            if (studentsRes.error) throw studentsRes.error;
+
+            const classesData = classesRes.data || [];
+            const classFeesData = classFeesRes.data || [];
+            const studentFeesData = studentFeesRes.data || [];
+            const studentsData = studentsRes.data || [];
+
+            const studentMap = new Map(studentsData.map((s: any) => [s.id, s]));
+
+            const overviewList = classesData.map((cls: any) => {
+                const classFee = classFeesData.find((cf: any) => cf.class_id === cls.id) || null;
+                
+                // Find student fees for students in this class
+                const classStudentFees = studentFeesData.filter((sf: any) => {
+                    const student = studentMap.get(sf.student_id);
+                    if (!student) return false;
+                    const studentClassId = student.class_id || sf.class_id;
+                    return studentClassId === cls.id;
+                });
+
+                const customStudents: any[] = [];
+                for (const sf of classStudentFees) {
+                    const student = studentMap.get(sf.student_id);
+                    if (!student) continue;
+
+                    let isCustom = false;
+                    if (!classFee) {
+                        isCustom = Number(sf.total_amount) > 0;
+                    } else {
+                        isCustom = 
+                            Number(sf.total_amount) !== Number(classFee.total_fee) ||
+                            Number(sf.admission_fee) !== Number(classFee.admission_fee) ||
+                            Number(sf.tuition_fee) !== Number(classFee.tuition_fee) ||
+                            Number(sf.betterment_fee) !== Number(classFee.betterment_fee) ||
+                            Number(sf.sports_fee) !== Number(classFee.sports_fee) ||
+                            Number(sf.reading_room_fee) !== Number(classFee.reading_room_fee) ||
+                            Number(sf.medical_fee) !== Number(classFee.medical_fee) ||
+                            Number(sf.laboratory_fee) !== Number(classFee.laboratory_fee) ||
+                            Number(sf.ave_fee) !== Number(classFee.ave_fee) ||
+                            Number(sf.swf) !== Number(classFee.swf) ||
+                            Number(sf.tbf) !== Number(classFee.tbf) ||
+                            Number(sf.examination_fee) !== Number(classFee.examination_fee) ||
+                            Number(sf.fines) !== Number(classFee.fines) ||
+                            Number(sf.others) !== Number(classFee.others);
+                    }
+
+                    if (isCustom) {
+                        customStudents.push({
+                            studentId: student.id,
+                            studentFeeId: sf.id,
+                            fullName: student.full_name,
+                            rollNumber: student.roll_number,
+                            totalAmount: sf.total_amount,
+                            fees: {
+                                admission_fee: Number(sf.admission_fee) || 0,
+                                tuition_fee: Number(sf.tuition_fee) || 0,
+                                betterment_fee: Number(sf.betterment_fee) || 0,
+                                sports_fee: Number(sf.sports_fee) || 0,
+                                reading_room_fee: Number(sf.reading_room_fee) || 0,
+                                medical_fee: Number(sf.medical_fee) || 0,
+                                laboratory_fee: Number(sf.laboratory_fee) || 0,
+                                ave_fee: Number(sf.ave_fee) || 0,
+                                swf: Number(sf.swf) || 0,
+                                tbf: Number(sf.tbf) || 0,
+                                examination_fee: Number(sf.examination_fee) || 0,
+                                fines: Number(sf.fines) || 0,
+                                others: Number(sf.others) || 0
+                            }
+                        });
+                    }
+                }
+
+                // Sort custom students by roll number or name
+                customStudents.sort((a, b) => {
+                    if (a.rollNumber && b.rollNumber) return a.rollNumber - b.rollNumber;
+                    return a.fullName.localeCompare(b.fullName);
+                });
+
+                return {
+                    classId: cls.id,
+                    className: cls.class_name,
+                    section: cls.section,
+                    classFee,
+                    customStudents
+                };
+            });
+
+            setPublishedOverview(overviewList);
+        } catch (error) {
+            console.error('Error fetching published overview:', error);
+        }
+    };
+
+    const fetchStudentCustomFees = async (studentId: string) => {
+        if (!currentYear) return;
+        try {
+            const { data, error } = await supabase
+                .from('student_fees')
+                .select('*')
+                .eq('student_id', studentId)
+                .eq('academic_year_id', currentYear.id)
+                .maybeSingle();
+
+            if (error) throw error;
+
+            if (data && data.total_amount > 0) {
+                setFees({
+                    admission_fee: Number(data.admission_fee) || 0,
+                    tuition_fee: Number(data.tuition_fee) || 0,
+                    betterment_fee: Number(data.betterment_fee) || 0,
+                    sports_fee: Number(data.sports_fee) || 0,
+                    reading_room_fee: Number(data.reading_room_fee) || 0,
+                    medical_fee: Number(data.medical_fee) || 0,
+                    laboratory_fee: Number(data.laboratory_fee) || 0,
+                    ave_fee: Number(data.ave_fee) || 0,
+                    swf: Number(data.swf) || 0,
+                    tbf: Number(data.tbf) || 0,
+                    examination_fee: Number(data.examination_fee) || 0,
+                    fines: Number(data.fines) || 0,
+                    others: Number(data.others) || 0
+                });
+            } else {
+                fetchExistingFees();
+            }
+        } catch (error) {
+            console.error('Error fetching student custom fees:', error);
+            fetchExistingFees();
+        }
+    };
+
     const fetchExistingFees = async () => {
         if (!currentYear) return;
+        if (editingStudentId) return;
         try {
             const { data } = await supabase
                 .from('class_fees')
@@ -169,6 +337,9 @@ export function SetFeesPage() {
                 .eq('class_id', selectedClassId)
                 .eq('academic_year_id', currentYear.id)
                 .maybeSingle();
+
+            if (editingStudentId) return;
+            if (applyTo === 'students' && selectedStudentIds.length === 1) return;
 
             if (data) {
                 setFees({
@@ -244,10 +415,12 @@ export function SetFeesPage() {
                         const pendingAmount = totalAmount - paidAmount;
                         return {
                             student_id: studentId,
+                            class_id: selectedClassId,
                             academic_year_id: currentYear.id,
                             total_amount: totalAmount,
                             amount_paid: paidAmount,
                             amount_pending: pendingAmount,
+                            ...fees,
                             updated_at: new Date().toISOString()
                         };
                     });
@@ -281,10 +454,12 @@ export function SetFeesPage() {
                     const pendingAmount = totalAmount - paidAmount;
                     return {
                         student_id: studentId,
+                        class_id: selectedClassId,
                         academic_year_id: currentYear.id,
                         total_amount: totalAmount,
                         amount_paid: paidAmount,
                         amount_pending: pendingAmount,
+                        ...fees,
                         updated_at: new Date().toISOString()
                     };
                 });
@@ -298,6 +473,7 @@ export function SetFeesPage() {
                 alert(`Fees successfully configured and published for ${selectedStudentIds.length} student(s)!`);
             }
             fetchPublishedFees(); // Refresh table
+            fetchPublishedOverview(); // Refresh overview
         } catch (error: any) {
             console.error('Error saving fees:', error);
             alert('Error saving fees: ' + error.message);
@@ -310,18 +486,140 @@ export function SetFeesPage() {
         if (!confirm(`Are you sure you want to delete the published fees for ${className}?`)) return;
 
         try {
-            const { error } = await supabase.from('class_fees').delete().eq('id', feeId);
-            if (error) throw error;
+            const feeToDelete = publishedFees.find(f => f.id === feeId);
+            if (!feeToDelete) throw new Error('Fee record not found locally');
+
+            const { class_id } = feeToDelete;
+
+            // Delete from class_fees
+            const { error: deleteClassFeeErr } = await supabase
+                .from('class_fees')
+                .delete()
+                .eq('id', feeId);
+            if (deleteClassFeeErr) throw deleteClassFeeErr;
+
+            // Delete corresponding student_fees records for students of this class in the current academic year
+            if (currentYear) {
+                const { data: classStudents } = await supabase
+                    .from('students')
+                    .select('id')
+                    .eq('class_id', class_id);
+
+                if (classStudents && classStudents.length > 0) {
+                    const studentIds = classStudents.map(s => s.id);
+                    const { error: deleteStudentFeesErr } = await supabase
+                        .from('student_fees')
+                        .delete()
+                        .in('student_id', studentIds)
+                        .eq('academic_year_id', currentYear.id);
+
+                    if (deleteStudentFeesErr) throw deleteStudentFeesErr;
+                }
+            }
 
             // Refresh logic
             fetchPublishedFees();
-            if (publishedFees.find(f => f.id === feeId)?.class_id === selectedClassId) {
+            fetchPublishedOverview();
+            if (class_id === selectedClassId) {
                 setFees(initialFeeState); // Reset form if we deleted the currently selected class
             }
             alert('Fee deleted successfully!');
         } catch (error: any) {
             console.error('Error deleting fee:', error);
             alert('Error deleting fee: ' + error.message);
+        }
+    };
+
+    const handleReset = () => {
+        if (applyTo === 'students' && selectedStudentIds.length === 1) {
+            fetchStudentCustomFees(selectedStudentIds[0]);
+        } else {
+            fetchExistingFees();
+        }
+    };
+
+    const handleEditStudentFee = (classId: string, studentId: string) => {
+        setApplyTo('students');
+        if (selectedClassId === classId) {
+            setSelectedStudentIds([studentId]);
+        } else {
+            setEditingStudentId(studentId);
+            setSelectedClassId(classId);
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleDeleteStudentFee = async (
+        studentFeeId: string,
+        studentId: string,
+        classId: string,
+        studentName: string,
+        classFee: any
+    ) => {
+        if (!confirm(`Are you sure you want to revert/delete the custom fee for ${studentName}?`)) return;
+
+        try {
+            if (classFee) {
+                // Fetch current paid amount
+                const { data: sfRow } = await supabase
+                    .from('student_fees')
+                    .select('amount_paid')
+                    .eq('id', studentFeeId)
+                    .single();
+
+                const paidAmount = sfRow?.amount_paid || 0;
+                const totalAmount = classFee.total_fee;
+                const pendingAmount = totalAmount - paidAmount;
+
+                // Revert to class default structure
+                const { error } = await supabase
+                    .from('student_fees')
+                    .upsert({
+                        id: studentFeeId,
+                        student_id: studentId,
+                        class_id: classId,
+                        academic_year_id: currentYear?.id,
+                        total_amount: totalAmount,
+                        amount_paid: paidAmount,
+                        amount_pending: pendingAmount,
+                        admission_fee: classFee.admission_fee,
+                        tuition_fee: classFee.tuition_fee,
+                        betterment_fee: classFee.betterment_fee,
+                        sports_fee: classFee.sports_fee,
+                        reading_room_fee: classFee.reading_room_fee,
+                        medical_fee: classFee.medical_fee,
+                        laboratory_fee: classFee.laboratory_fee,
+                        ave_fee: classFee.ave_fee,
+                        swf: classFee.swf,
+                        tbf: classFee.tbf,
+                        examination_fee: classFee.examination_fee,
+                        fines: classFee.fines,
+                        others: classFee.others,
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'student_id,academic_year_id' });
+
+                if (error) throw error;
+                alert(`Reverted ${studentName}'s fee structure to class default successfully.`);
+            } else {
+                // No class fee exists, delete custom fee row completely
+                const { error } = await supabase
+                    .from('student_fees')
+                    .delete()
+                    .eq('id', studentFeeId);
+
+                if (error) throw error;
+                alert(`Deleted custom fee structure for ${studentName}.`);
+            }
+
+            // Refresh UI
+            fetchPublishedOverview();
+            // Also reset current inputs if it was this student
+            if (applyTo === 'students' && selectedStudentIds.includes(studentId)) {
+                handleReset();
+            }
+        } catch (error: any) {
+            console.error('Error deleting custom student fee:', error);
+            alert('Error deleting custom student fee: ' + error.message);
         }
     };
 
@@ -556,7 +854,7 @@ export function SetFeesPage() {
                     <div className="form-actions">
                         <button
                             className="reset-btn"
-                            onClick={() => fetchExistingFees()}
+                            onClick={handleReset}
                         >
                             <RotateCcw size={18} />
                             Reset Changes
@@ -573,59 +871,217 @@ export function SetFeesPage() {
                 </div>
             </div>
 
-            {/* Published Class Fees Table */}
+            {/* Published Fees Overview */}
             <div className="config-box" style={{ marginTop: '24px' }}>
                 <div className="form-header" style={{ marginBottom: '20px' }}>
-                    <h2 className="section-title">Published Class Fees</h2>
-                    <p style={{ color: '#6B7280', margin: 0 }}>Overview of all fees published for {currentYear?.year_name}</p>
+                    <h2 className="section-title">Published Fees Overview</h2>
+                    <p style={{ color: '#6B7280', margin: 0 }}>View class-wide structures and individual student custom configurations for {currentYear?.year_name}</p>
                 </div>
 
-                {publishedFees.length === 0 ? (
+                {publishedOverview.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '40px', color: '#6B7280', background: '#F9FAFB', borderRadius: '12px' }}>
-                        No class fees have been published for the current academic year yet.
+                        No fees have been published for the current academic year yet.
                     </div>
                 ) : (
-                    <div className="published-fees-table">
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ background: '#F3F4F6', borderBottom: '2px solid #E5E7EB' }}>
-                                    <th style={{ textAlign: 'left', padding: '16px', fontSize: '14px', fontWeight: '600', color: '#4B5563', textTransform: 'uppercase' }}>Class</th>
-                                    <th style={{ textAlign: 'left', padding: '16px', fontSize: '14px', fontWeight: '600', color: '#4B5563', textTransform: 'uppercase' }}>Total Annual Fee</th>
-                                    <th style={{ textAlign: 'right', padding: '16px', fontSize: '14px', fontWeight: '600', color: '#4B5563', textTransform: 'uppercase' }}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {publishedFees.map((fee: any) => {
-                                    const className = `${fee.classes?.class_name} ${fee.classes?.section ? `- ${fee.classes.section}` : ''}`;
-                                    return (
-                                        <tr key={fee.id} style={{ borderBottom: '1px solid #E5E7EB' }}>
-                                            <td style={{ padding: '16px', fontSize: '15px', fontWeight: '500', color: '#1D1D1F' }}>
+                    <div className="published-overview-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {publishedOverview.map((item) => {
+                            const isExpanded = expandedClassIds.includes(item.classId);
+                            const className = `${item.className}${item.section ? ` - ${item.section}` : ''}`;
+                            const hasFees = item.classFee || item.customStudents.length > 0;
+                            
+                            return (
+                                <div 
+                                    key={item.classId} 
+                                    style={{
+                                        border: '1px solid #E5E7EB',
+                                        borderRadius: '12px',
+                                        overflow: 'hidden',
+                                        background: '#FFFFFF',
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                        opacity: hasFees ? 1 : 0.8,
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                >
+                                    {/* Class Accordion Header */}
+                                    <div 
+                                        onClick={() => {
+                                            if (isExpanded) {
+                                                setExpandedClassIds(expandedClassIds.filter(id => id !== item.classId));
+                                            } else {
+                                                setExpandedClassIds([...expandedClassIds, item.classId]);
+                                            }
+                                        }}
+                                        style={{
+                                            padding: '16px 20px',
+                                            background: isExpanded ? '#F9FAFB' : '#FFFFFF',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            cursor: 'pointer',
+                                            userSelect: 'none',
+                                            borderBottom: isExpanded ? '1px solid #E5E7EB' : 'none',
+                                            transition: 'background-color 0.2s ease'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <span style={{ 
+                                                fontSize: '16px', 
+                                                fontWeight: '600', 
+                                                color: '#1D1D1F' 
+                                            }}>
                                                 {className}
-                                            </td>
-                                            <td style={{ padding: '16px', fontSize: '15px', fontWeight: '600', color: '#10B981' }}>
-                                                ₹{Number(fee.total_fee).toLocaleString()}
-                                            </td>
-                                            <td style={{ padding: '16px', textAlign: 'right' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                                                    <button
-                                                        onClick={() => handleEditRow(fee.class_id)}
-                                                        style={{ padding: '8px', background: '#EFF6FF', color: '#3B82F6', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                    >
-                                                        <Edit2 size={16} /> Edit
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDelete(fee.id, className)}
-                                                        style={{ padding: '8px', background: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                    >
-                                                        <Trash2 size={16} /> Delete
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                                            </span>
+                                            {item.classFee && (
+                                                <span style={{
+                                                    fontSize: '12px',
+                                                    fontWeight: '600',
+                                                    background: '#E0F2FE',
+                                                    color: '#0369A1',
+                                                    padding: '2px 8px',
+                                                    borderRadius: '12px'
+                                                }}>
+                                                    Class Default: ₹{Number(item.classFee.total_fee).toLocaleString()}
+                                                </span>
+                                            )}
+                                            {item.customStudents.length > 0 && (
+                                                <span style={{
+                                                    fontSize: '12px',
+                                                    fontWeight: '600',
+                                                    background: '#FEF3C7',
+                                                    color: '#D97706',
+                                                    padding: '2px 8px',
+                                                    borderRadius: '12px'
+                                                }}>
+                                                    {item.customStudents.length} Customized Student{item.customStudents.length > 1 ? 's' : ''}
+                                                </span>
+                                            )}
+                                            {!hasFees && (
+                                                <span style={{
+                                                    fontSize: '12px',
+                                                    color: '#9CA3AF',
+                                                    fontStyle: 'italic'
+                                                }}>
+                                                    No fees configured
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ 
+                                                transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', 
+                                                transition: 'transform 0.2s ease',
+                                                display: 'inline-block',
+                                                color: '#6B7280'
+                                            }}>
+                                                ▶
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Class Accordion Body */}
+                                    {isExpanded && (
+                                        <div style={{ padding: '20px', background: '#FFFFFF' }}>
+                                            {/* Section 1: Class Default Structure */}
+                                            <div style={{ marginBottom: '20px' }}>
+                                                <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: '600', color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    Class-Wide Default Fee
+                                                </h4>
+                                                {item.classFee ? (
+                                                    <div style={{ 
+                                                        display: 'flex', 
+                                                        justifyContent: 'space-between', 
+                                                        alignItems: 'center', 
+                                                        background: '#F3F4F6', 
+                                                        padding: '12px 16px', 
+                                                        borderRadius: '8px' 
+                                                    }}>
+                                                        <div>
+                                                            <span style={{ fontWeight: '600', color: '#1D1D1F' }}>
+                                                                Standard Class Fee: ₹{Number(item.classFee.total_fee).toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                                            <button
+                                                                onClick={() => handleEditRow(item.classId)}
+                                                                style={{ padding: '6px 12px', background: '#EFF6FF', color: '#3B82F6', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                            >
+                                                                <Edit2 size={14} /> Edit
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDelete(item.classFee.id, className)}
+                                                                style={{ padding: '6px 12px', background: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                            >
+                                                                <Trash2 size={14} /> Delete
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ color: '#6B7280', fontSize: '14px', padding: '12px', background: '#F9FAFB', borderRadius: '8px', border: '1px dashed #D1D5DB' }}>
+                                                        No class-wide default fee is currently configured.
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Section 2: Individual Custom Student Fees */}
+                                            <div>
+                                                <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: '600', color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    Custom Student Fees
+                                                </h4>
+                                                {item.customStudents.length === 0 ? (
+                                                    <div style={{ color: '#6B7280', fontSize: '14px', padding: '12px', background: '#F9FAFB', borderRadius: '8px', border: '1px dashed #D1D5DB' }}>
+                                                        No students in this class have customized fees.
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                        {item.customStudents.map((stud: any) => (
+                                                            <div 
+                                                                key={stud.studentId}
+                                                                style={{
+                                                                    display: 'flex',
+                                                                    justifyContent: 'space-between',
+                                                                    alignItems: 'center',
+                                                                    border: '1px solid #E5E7EB',
+                                                                    padding: '10px 16px',
+                                                                    borderRadius: '8px',
+                                                                    background: '#FFFBEB'
+                                                                }}
+                                                            >
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                    <span style={{ fontWeight: '500', color: '#1D1D1F' }}>
+                                                                        {stud.rollNumber ? `#${stud.rollNumber} ` : ''}
+                                                                        {stud.fullName}
+                                                                    </span>
+                                                                    <span style={{ 
+                                                                        fontSize: '13px', 
+                                                                        fontWeight: '600', 
+                                                                        color: '#D97706' 
+                                                                    }}>
+                                                                        (Custom Total: ₹{stud.totalAmount.toLocaleString()})
+                                                                    </span>
+                                                                </div>
+                                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                                    <button
+                                                                        onClick={() => handleEditStudentFee(item.classId, stud.studentId)}
+                                                                        style={{ padding: '6px 12px', background: '#EFF6FF', color: '#3B82F6', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                                    >
+                                                                        <Edit2 size={14} /> Edit
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleDeleteStudentFee(stud.studentFeeId, stud.studentId, item.classId, stud.fullName, item.classFee)}
+                                                                        style={{ padding: '6px 12px', background: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                                    >
+                                                                        <Trash2 size={14} /> Revert
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>

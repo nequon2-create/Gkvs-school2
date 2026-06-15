@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { useAuthStore } from '../../store/authStore';
 import { supabase } from '../../config/supabase';
 import { Event, StudentFee } from '../../types';
@@ -51,6 +52,7 @@ export default function ParentHomeScreen() {
         frequency: string;
     } | null>(null);
     const [alertDismissCountdown, setAlertDismissCountdown] = useState(5);
+    const [showUPIInstructions, setShowUPIInstructions] = useState(false);
 
     const fetchData = async () => {
         try {
@@ -237,22 +239,28 @@ export default function ParentHomeScreen() {
     // Countdown Timer logic for Fee Popup
     useEffect(() => {
         let interval: NodeJS.Timeout | null = null;
-        if (activeFeeAlert && alertDismissCountdown > 0) {
+        if (activeFeeAlert && alertDismissCountdown > 0 && !showUPIInstructions) {
             interval = setInterval(() => {
                 setAlertDismissCountdown(prev => prev - 1);
             }, 1000);
-        } else if (alertDismissCountdown === 0 && activeFeeAlert) {
+        } else if (alertDismissCountdown === 0 && activeFeeAlert && !showUPIInstructions) {
             setActiveFeeAlert(null);
+            setShowUPIInstructions(false);
         }
         return () => {
             if (interval) clearInterval(interval);
         };
-    }, [activeFeeAlert, alertDismissCountdown]);
+    }, [activeFeeAlert, alertDismissCountdown, showUPIInstructions]);
+
+    const closeFeeAlert = () => {
+        setActiveFeeAlert(null);
+        setShowUPIInstructions(false);
+    };
 
     const handleUPIPay = () => {
         if (!activeFeeAlert) return;
-        const note = `Fee Payment - ${activeFeeAlert.studentName} - Reg ${activeFeeAlert.regNo}`.replace(/ /g, '_');
-        const upiUrl = `upi://pay?pa=9900282804@ybl&pn=GKVS%20School&am=${activeFeeAlert.pendingAmount}&cu=INR&tn=${note}`;
+        const note = `Fee_Payment_${activeFeeAlert.studentName.trim().replace(/\s+/g, '_')}_Reg_${activeFeeAlert.regNo}`;
+        const upiUrl = `upi://pay?pa=9900282804@ybl&pn=SIDDARAM%20MUGALIN&am=${activeFeeAlert.pendingAmount}&cu=INR&tn=${note}`;
         
         Linking.canOpenURL(upiUrl)
             .then((supported) => {
@@ -746,41 +754,137 @@ export default function ParentHomeScreen() {
                     visible={!!activeFeeAlert}
                     transparent={true}
                     animationType="fade"
-                    onRequestClose={() => setActiveFeeAlert(null)}
+                    onRequestClose={closeFeeAlert}
                 >
                     <View style={styles.alertOverlay}>
                         <View style={styles.alertBox}>
-                            <View style={styles.alertHeader}>
-                                <Ionicons name="warning" size={26} color="#FBBF24" />
-                                <Text style={styles.alertHeaderTitle}>FEE REMINDER</Text>
-                                <TouchableOpacity onPress={() => setActiveFeeAlert(null)} style={styles.alertCloseBtn}>
-                                    <Ionicons name="close" size={20} color="rgba(255, 255, 255, 0.4)" />
-                                </TouchableOpacity>
-                            </View>
+                            {!showUPIInstructions ? (
+                                <>
+                                    <View style={styles.alertHeader}>
+                                        <Ionicons name="warning" size={26} color="#FBBF24" />
+                                        <Text style={styles.alertHeaderTitle}>FEE REMINDER</Text>
+                                        <TouchableOpacity onPress={closeFeeAlert} style={styles.alertCloseBtn}>
+                                            <Ionicons name="close" size={20} color="rgba(255, 255, 255, 0.4)" />
+                                        </TouchableOpacity>
+                                    </View>
 
-                            <View style={styles.alertBody}>
-                                <Text style={styles.alertMessageText}>
-                                    Dear Parent, a fee balance of <Text style={styles.highlightAmount}>₹{activeFeeAlert.pendingAmount.toLocaleString('en-IN')}</Text> is pending for your child: <Text style={styles.highlightName}>{activeFeeAlert.studentName}</Text> (Reg No: {activeFeeAlert.regNo}).
-                                </Text>
-                                <Text style={styles.alertInstructions}>
-                                    Please click pay below to pay directly or clear the pending dues at the school office.
-                                </Text>
+                                    <View style={styles.alertBody}>
+                                        <Text style={styles.alertMessageText}>
+                                            Dear Parent, a fee balance of <Text style={styles.highlightAmount}>₹{activeFeeAlert.pendingAmount.toLocaleString('en-IN')}</Text> is pending for your child: <Text style={styles.highlightName}>{activeFeeAlert.studentName}</Text> (Reg No: {activeFeeAlert.regNo}).
+                                        </Text>
+                                        <Text style={styles.alertInstructions}>
+                                            Please click pay below to copy details and open GPay/PhonePe to pay, or clear the dues at the office.
+                                        </Text>
 
-                                <View style={styles.alertActionButtons}>
-                                    <TouchableOpacity style={styles.alertPayNowBtn} onPress={handleUPIPay} activeOpacity={0.8}>
-                                        <Ionicons name="wallet" size={16} color="#090514" style={{ marginRight: 6 }} />
-                                        <Text style={styles.alertPayNowBtnText}>PAY VIA UPI</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.alertLaterBtn} onPress={() => setActiveFeeAlert(null)}>
-                                        <Text style={styles.alertLaterBtnText}>Pay Later</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
+                                        <View style={styles.alertActionButtons}>
+                                            <TouchableOpacity style={styles.alertPayNowBtn} onPress={() => setShowUPIInstructions(true)} activeOpacity={0.8}>
+                                                <Ionicons name="wallet" size={16} color="#090514" style={{ marginRight: 6 }} />
+                                                <Text style={styles.alertPayNowBtnText}>PAY VIA UPI</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.alertLaterBtn} onPress={closeFeeAlert}>
+                                                <Text style={styles.alertLaterBtnText}>Pay Later</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
 
-                            {/* Animated Countdown Progress Bar */}
-                            <View style={styles.progressTrackBar}>
-                                <View style={[styles.progressBarFill, { width: `${(alertDismissCountdown / 5) * 100}%` }]} />
-                            </View>
+                                    {/* Animated Countdown Progress Bar */}
+                                    <View style={styles.progressTrackBar}>
+                                        <View style={[styles.progressBarFill, { width: `${(alertDismissCountdown / 5) * 100}%` }]} />
+                                    </View>
+                                </>
+                            ) : (
+                                <>
+                                    <View style={styles.alertHeader}>
+                                        <Ionicons name="wallet-outline" size={26} color="#34D399" />
+                                        <Text style={[styles.alertHeaderTitle, { color: '#34D399' }]}>EASY UPI PAY</Text>
+                                        <TouchableOpacity onPress={closeFeeAlert} style={styles.alertCloseBtn}>
+                                            <Ionicons name="close" size={20} color="rgba(255, 255, 255, 0.4)" />
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    <View style={styles.alertBody}>
+                                        <Text style={styles.alertMessageText}>
+                                            Copy the details below, paste them into your UPI app, and pay:
+                                        </Text>
+
+                                        <View style={styles.upiInfoCard}>
+                                            <View style={styles.upiRow}>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={styles.upiLabel}>PAY TO PHONE NUMBER</Text>
+                                                    <Text style={styles.upiValue}>9900282804</Text>
+                                                </View>
+                                                <TouchableOpacity 
+                                                    style={styles.copyButton}
+                                                    onPress={async () => {
+                                                        await Clipboard.setStringAsync('9900282804');
+                                                        Alert.alert('Copied!', 'Phone number copied to clipboard.');
+                                                    }}
+                                                >
+                                                    <Ionicons name="copy-outline" size={14} color="#34D399" />
+                                                    <Text style={styles.copyButtonText}>Copy</Text>
+                                                </TouchableOpacity>
+                                            </View>
+
+                                            <View style={styles.upiRow}>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={styles.upiLabel}>AMOUNT TO PAY</Text>
+                                                    <Text style={styles.upiValue}>₹{activeFeeAlert.pendingAmount.toLocaleString('en-IN')}</Text>
+                                                </View>
+                                                <TouchableOpacity 
+                                                    style={styles.copyButton}
+                                                    onPress={async () => {
+                                                        await Clipboard.setStringAsync(activeFeeAlert.pendingAmount.toString());
+                                                        Alert.alert('Copied!', 'Amount copied to clipboard.');
+                                                    }}
+                                                >
+                                                    <Ionicons name="copy-outline" size={14} color="#34D399" />
+                                                    <Text style={styles.copyButtonText}>Copy</Text>
+                                                </TouchableOpacity>
+                                            </View>
+
+                                            <View style={[styles.upiRow, { borderBottomWidth: 0, paddingBottom: 0 }]}>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={styles.upiLabel}>UPI ID (ALTERNATE)</Text>
+                                                    <Text style={styles.upiValue}>9900282804@ybl</Text>
+                                                </View>
+                                                <TouchableOpacity 
+                                                    style={styles.copyButton}
+                                                    onPress={async () => {
+                                                        await Clipboard.setStringAsync('9900282804@ybl');
+                                                        Alert.alert('Copied!', 'UPI ID copied to clipboard.');
+                                                    }}
+                                                >
+                                                    <Ionicons name="copy-outline" size={14} color="#34D399" />
+                                                    <Text style={styles.copyButtonText}>Copy</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+
+                                        <Text style={[styles.alertInstructions, { marginBottom: 6 }]}>
+                                            Open UPI App below, select **Pay to Mobile Number** or **UPI ID**, paste details & pay:
+                                        </Text>
+
+                                        <View style={styles.upiAppButtonsGrid}>
+                                            <TouchableOpacity style={styles.upiAppBtn} onPress={() => Linking.openURL('phonepe://')}>
+                                                <Text style={styles.upiAppBtnText}>PhonePe</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.upiAppBtn} onPress={() => Linking.openURL('gpay://')}>
+                                                <Text style={styles.upiAppBtnText}>Google Pay</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.upiAppBtn} onPress={() => Linking.openURL('paytm://')}>
+                                                <Text style={styles.upiAppBtnText}>Paytm</Text>
+                                            </TouchableOpacity>
+                                        </View>
+
+                                        <TouchableOpacity 
+                                            style={styles.alertBackBtn} 
+                                            onPress={() => setShowUPIInstructions(false)}
+                                        >
+                                            <Text style={styles.alertBackBtnText}>Back to Alert</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </>
+                            )}
                         </View>
                     </View>
                 </Modal>
@@ -1068,5 +1172,78 @@ const styles = StyleSheet.create({
     },
     starTouch: {
         padding: 2
+    },
+    upiInfoCard: {
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.06)',
+        padding: 12,
+        marginVertical: 12,
+        gap: 12
+    },
+    upiRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.04)',
+        paddingBottom: 8
+    },
+    upiLabel: {
+        fontSize: 9,
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontWeight: 'bold',
+        letterSpacing: 0.5
+    },
+    upiValue: {
+        fontSize: 14,
+        color: '#FFFFFF',
+        fontWeight: '600',
+        marginTop: 2
+    },
+    copyButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(52, 211, 153, 0.1)',
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        borderRadius: 6,
+        gap: 4
+    },
+    copyButtonText: {
+        fontSize: 11,
+        color: '#34D399',
+        fontWeight: 'bold'
+    },
+    upiAppButtonsGrid: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 8,
+        marginVertical: 12
+    },
+    upiAppBtn: {
+        flex: 1,
+        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        paddingVertical: 10,
+        borderRadius: 8,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)'
+    },
+    upiAppBtnText: {
+        fontSize: 12,
+        color: '#FFFFFF',
+        fontWeight: '600'
+    },
+    alertBackBtn: {
+        paddingVertical: 10,
+        alignItems: 'center',
+        marginTop: 4
+    },
+    alertBackBtnText: {
+        fontSize: 12,
+        color: 'rgba(255, 255, 255, 0.4)',
+        textDecorationLine: 'underline'
     }
 });

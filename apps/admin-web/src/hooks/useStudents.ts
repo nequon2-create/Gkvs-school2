@@ -18,6 +18,8 @@ export function useStudents(): UseStudentsReturn {
     const [allStudents, setAllStudents] = useState<StudentListItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filters, setFilters] = useState<FilterOptions>({});
 
     const fetchStudents = useCallback(async () => {
         try {
@@ -51,7 +53,6 @@ export function useStudents(): UseStudentsReturn {
 
             console.log(`✅ Fetched ${data?.length || 0} students`);
             setAllStudents(data || []);
-            setStudents(data || []);
         } catch (err: any) {
             const errorMessage = err.message || 'Failed to fetch students';
             setError(errorMessage);
@@ -62,108 +63,121 @@ export function useStudents(): UseStudentsReturn {
     }, []);
 
     const searchStudents = useCallback((query: string) => {
-        if (!query.trim()) {
-            setStudents(allStudents);
-            return;
-        }
+        setSearchQuery(query);
+    }, []);
 
-        const searchLower = query.toLowerCase();
-        const filtered = allStudents.filter(student =>
-            student.full_name.toLowerCase().includes(searchLower) ||
-            student.registration_number.toLowerCase().includes(searchLower) ||
-            student.parent_name?.toLowerCase().includes(searchLower)
-        );
+    const filterStudents = useCallback((filters: FilterOptions) => {
+        setFilters(filters);
+    }, []);
 
-        console.log(`🔍 Search results: ${filtered.length} students`);
-        setStudents(filtered);
-    }, [allStudents]);
+    useEffect(() => {
+        let isCancelled = false;
 
-    const filterStudents = useCallback(async (filters: FilterOptions) => {
-
-        try {
-            // Check if filtering by a specific academic year that might be historical
+        const applyFiltersAndSearch = async () => {
+            // 1. If filtering by a historical academic year, fetch from history
             if (filters.academicYearId && !filters.skipHistory) {
-                const { data: yearData } = await supabase
-                    .from('academic_years')
-                    .select('is_current')
-                    .eq('id', filters.academicYearId)
-                    .single();
+                try {
+                    const { data: yearData } = await supabase
+                        .from('academic_years')
+                        .select('is_current')
+                        .eq('id', filters.academicYearId)
+                        .single();
 
-                if (yearData && !yearData.is_current) {
-                    setLoading(true);
+                    if (yearData && !yearData.is_current) {
+                        setLoading(true);
+                        const { data: historyData, error: historyError } = await supabase
+                            .from('student_enrollment_history')
+                            .select(`
+                                status,
+                                class_id,
+                                academic_year_id,
+                                students (*),
+                                classes (id, class_name, section),
+                                academic_years (id, year_name)
+                            `)
+                            .eq('academic_year_id', filters.academicYearId);
 
-                    // Fetch historical data
-                    const { data: historyData, error: historyError } = await supabase
-                        .from('student_enrollment_history')
-                        .select(`
-                            status,
-                            class_id,
-                            academic_year_id,
-                            students (*),
-                            classes (id, class_name, section),
-                            academic_years (id, year_name)
-                        `)
-                        .eq('academic_year_id', filters.academicYearId);
+                        if (historyError) throw historyError;
 
-                    if (historyError) {
-                        console.error('❌ Error fetching historical students:', historyError);
-                        throw historyError;
+                        if (isCancelled) return;
+
+                        let historicalStudents = (historyData || []).map((h: any) => ({
+                            ...h.students,
+                            class_id: h.class_id,
+                            academic_year_id: h.academic_year_id,
+                            is_active: h.status === 'active' || h.status === 'completed',
+                            classes: h.classes,
+                            academic_years: h.academic_years
+                        })) as StudentListItem[];
+
+                        // Apply remaining filters locally on historical data
+                        if (filters.classId) {
+                            historicalStudents = historicalStudents.filter(s => s.class_id === filters.classId);
+                        }
+                        if (filters.gender) {
+                            historicalStudents = historicalStudents.filter(s => s.gender === filters.gender);
+                        }
+                        if (filters.isActive !== undefined) {
+                            historicalStudents = historicalStudents.filter(s => s.is_active === filters.isActive);
+                        }
+
+                        // Apply search query locally
+                        if (searchQuery.trim()) {
+                            const searchLower = searchQuery.toLowerCase();
+                            historicalStudents = historicalStudents.filter(student =>
+                                student.full_name.toLowerCase().includes(searchLower) ||
+                                student.registration_number.toLowerCase().includes(searchLower) ||
+                                student.parent_name?.toLowerCase().includes(searchLower)
+                            );
+                        }
+
+                        setStudents(historicalStudents);
+                        setLoading(false);
+                        return;
                     }
-
-                    // Map history format to match StudentListItem format
-                    let historicalStudents = (historyData || []).map((h: any) => ({
-                        ...h.students,
-                        class_id: h.class_id,
-                        academic_year_id: h.academic_year_id,
-                        is_active: h.status === 'active' || h.status === 'completed',
-                        classes: h.classes,
-                        academic_years: h.academic_years
-                    })) as StudentListItem[];
-
-                    // Apply remaining local filters
-                    if (filters.classId) {
-                        historicalStudents = historicalStudents.filter(s => s.class_id === filters.classId);
-                    }
-                    if (filters.gender) {
-                        historicalStudents = historicalStudents.filter(s => s.gender === filters.gender);
-                    }
-                    if (filters.isActive !== undefined) {
-                        historicalStudents = historicalStudents.filter(s => s.is_active === filters.isActive);
-                    }
-
-                    console.log(`🎯 Historical Filter results: ${historicalStudents.length} students`);
-                    setStudents(historicalStudents);
-                    return;
+                } catch (err) {
+                    console.error('Failed to filter historical students', err);
+                    setLoading(false);
                 }
             }
-        } catch (err) {
-            console.error('Failed to filter historical students', err);
-        } finally {
-            setLoading(false);
-        }
 
-        // Normal local filtering for current active students
-        let filtered = [...allStudents];
+            // 2. Normal local filtering for current active students
+            let result = [...allStudents];
 
-        if (filters.classId) {
-            filtered = filtered.filter(s => s.class_id === filters.classId);
-        }
+            if (filters.classId) {
+                result = result.filter(s => s.class_id === filters.classId);
+            }
+            if (filters.academicYearId) {
+                result = result.filter(s => s.academic_year_id === filters.academicYearId);
+            }
+            if (filters.gender) {
+                result = result.filter(s => s.gender === filters.gender);
+            }
+            if (filters.isActive !== undefined) {
+                result = result.filter(s => s.is_active === filters.isActive);
+            }
 
-        if (filters.academicYearId) {
-            filtered = filtered.filter(s => s.academic_year_id === filters.academicYearId);
-        }
+            // Apply search query locally
+            if (searchQuery.trim()) {
+                const searchLower = searchQuery.toLowerCase();
+                result = result.filter(student =>
+                    student.full_name.toLowerCase().includes(searchLower) ||
+                    student.registration_number.toLowerCase().includes(searchLower) ||
+                    student.parent_name?.toLowerCase().includes(searchLower)
+                );
+            }
 
-        if (filters.gender) {
-            filtered = filtered.filter(s => s.gender === filters.gender);
-        }
+            if (!isCancelled) {
+                setStudents(result);
+            }
+        };
 
-        if (filters.isActive !== undefined) {
-            filtered = filtered.filter(s => s.is_active === filters.isActive);
-        }
+        applyFiltersAndSearch();
 
-        console.log(`🎯 Filter results: ${filtered.length} students`);
-        setStudents(filtered);
-    }, [allStudents]);
+        return () => {
+            isCancelled = true;
+        };
+    }, [allStudents, filters, searchQuery]);
 
     const deleteStudent = useCallback(async (id: string): Promise<boolean> => {
         try {

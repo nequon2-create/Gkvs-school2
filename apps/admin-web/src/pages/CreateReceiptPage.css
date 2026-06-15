@@ -202,21 +202,27 @@
 /* PHYSICAL RECEIPT PRINT STYLES */
 .physical-receipt-print {
     display: none;
-    width: 210mm;
-    /* A4 width */
-    height: 100%;
-    padding: 20px;
+    width: 100%;
+    box-sizing: border-box;
     background: white;
     font-family: 'Times New Roman', Times, serif;
 }
 
 @media print {
+    @page {
+        size: A4 portrait;
+        margin: 10mm;
+    }
+
     .no-print {
         display: none !important;
     }
 
     .physical-receipt-print {
         display: block !important;
+        width: 100% !important;
+        padding: 0 !important;
+        box-sizing: border-box;
     }
 
     body {
@@ -234,9 +240,10 @@
 .receipt-border {
     border: 2px solid #000;
     padding: 15px;
-    min-height: 280mm;
+    min-height: 250mm; /* Fit perfectly on single A4 sheet */
     position: relative;
     background: #fff;
+    box-sizing: border-box;
 }
 
 .receipt-header-main {
@@ -260,14 +267,24 @@
 .school-info-section {
     display: flex;
     align-items: center;
+    justify-content: center; /* Center horizontally */
     gap: 20px;
-    padding: 10px 0;
+    padding: 5px 0; /* Reduced padding */
+}
+
+.school-logo {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%; /* Circular logo shape */
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
 .school-logo img {
-    height: 80px;
-    width: auto;
-    object-fit: contain;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .school-names {
@@ -276,15 +293,16 @@
 }
 
 .main-school-name {
-    font-size: 24px;
+    font-size: 20px; /* Reduced from 24px to fit cleanly */
     font-weight: 900;
     text-transform: uppercase;
     margin: 0;
     letter-spacing: 0.5px;
+    line-height: 1.2;
 }
 
 .school-location {
-    font-size: 14px;
+    font-size: 13px;
     margin-top: 4px;
     font-weight: bold;
 }
@@ -292,7 +310,7 @@
 .top-meta-row {
     display: flex;
     justify-content: space-between;
-    margin: 15px 0;
+    margin: 10px 0; /* Reduced from 15px */
 }
 
 .handwritten-val {
@@ -326,7 +344,7 @@
 .class-detail-row {
     display: flex;
     gap: 20px;
-    margin: 10px 0 20px 0;
+    margin: 10px 0 10px 0; /* Reduced bottom margin from 20px */
 }
 
 .field-label-en {
@@ -345,7 +363,7 @@
 .physical-table th,
 .physical-table td {
     border: 1px solid #000;
-    padding: 8px;
+    padding: 6px; /* Reduced cell padding from 8px */
     font-size: 14px;
 }
 
@@ -399,7 +417,7 @@
 }
 
 .words-section {
-    margin-top: 20px;
+    margin-top: 12px; /* Reduced from 20px */
     display: flex;
     align-items: flex-end;
     gap: 10px;
@@ -415,7 +433,7 @@
 }
 
 .signature-line-area {
-    margin-top: 40px;
+    margin-top: 25px; /* Reduced from 40px */
     display: flex;
     justify-content: flex-end;
 }

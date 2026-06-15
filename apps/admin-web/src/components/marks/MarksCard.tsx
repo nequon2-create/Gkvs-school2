@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Edit2, Save, X, Printer } from 'lucide-react';
 
+const formatExamName = (name: string) => {
+    if (!name) return '';
+    return name.replace(/FA([1-4])/gi, 'F$1').replace(/SA([1-2])/gi, 'S$1');
+};
+
 interface MarksCardProps {
     studentId: string;
     examId: string;
@@ -362,7 +367,7 @@ export function MarksCard({ studentId, examId, onClose }: MarksCardProps) {
                             textTransform: 'uppercase'
                         }}
                     >
-                        MARKS CARD - {exam?.exam_type || exam?.exam_name || 'EXAM'}
+                        MARKS CARD - {formatExamName(exam?.exam_type || exam?.exam_name || 'EXAM')}
                     </h2>
                     <p style={{ fontSize: '15px', color: '#86868B', margin: 0 }}>
                         Date: {exam?.exam_date ? new Date(exam.exam_date).toLocaleDateString() : 'N/A'}

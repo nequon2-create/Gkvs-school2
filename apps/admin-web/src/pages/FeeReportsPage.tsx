@@ -12,9 +12,11 @@ import {
     RefreshCw,
     X,
     FileSpreadsheet,
-    FileText
+    FileText,
+    ReceiptText
 } from 'lucide-react';
 import './FeeReportsPage.css';
+import { ReceiptViewModal } from '../components/shared/ReceiptViewModal';
 
 interface Class {
     id: string;
@@ -40,6 +42,7 @@ interface StudentFeeDetail {
 }
 
 interface Receipt {
+    id: string;
     receipt_number: number;
     receipt_date: string;
     amount_paid: number;
@@ -66,6 +69,7 @@ export function FeeReportsPage() {
     const [selectedStudentForHistory, setSelectedStudentForHistory] = useState<StudentFeeDetail | null>(null);
     const [paymentHistory, setPaymentHistory] = useState<Receipt[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
+    const [selectedReceiptIdForModal, setSelectedReceiptIdForModal] = useState<string | null>(null);
 
     useEffect(() => {
         fetchInitialData();
@@ -238,15 +242,13 @@ export function FeeReportsPage() {
         // Prefix with India country code 91 if it's a 10 digit number
         const formattedPhone = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone;
         
-        // Dynamic UPI deep link for mobile apps
-        const upiLink = `upi://pay?pa=9900282804@ybl&pn=GKVS%20School&am=${student.pending_amount}&cu=INR&tn=Fee_Payment_${student.full_name.trim().replace(/\s+/g, '_')}`;
-        
         const message = `Dear Parent, this is a reminder from GKVS School regarding the pending school fees for your child: ${student.full_name} (Reg No: ${student.registration_number}). The current pending balance is ₹${student.pending_amount.toLocaleString('en-IN')}.
 
-You can pay directly by tapping this link:
-${upiLink}
+Kindly pay this balance of ₹${student.pending_amount.toLocaleString('en-IN')} using Google Pay, PhonePe, or Paytm to:
+• Phone Number: 9900282804
+• UPI ID: 9900282804@ybl
 
-Kindly arrange to clear this balance. Thank you.`;
+Thank you.`;
         return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
     };
 
@@ -257,7 +259,7 @@ Kindly arrange to clear this balance. Thank you.`;
         try {
             const { data } = await supabase
                 .from('fee_receipts')
-                .select('receipt_number, receipt_date, amount_paid, payment_mode')
+                .select('id, receipt_number, receipt_date, amount_paid, payment_mode')
                 .eq('student_id', student.student_id)
                 .order('receipt_date', { ascending: false });
             setPaymentHistory(data || []);
@@ -398,7 +400,8 @@ Kindly arrange to clear this balance. Thank you.`;
 
     return (
         <div className="fee-reports-page">
-            {/* Header */}
+            <div className="no-print">
+                {/* Header */}
             <div className="page-header no-print">
                 <button className="back-btn" onClick={() => navigate('/billing')}>
                     <ChevronLeft size={20} />
@@ -719,9 +722,27 @@ Kindly arrange to clear this balance. Thank you.`;
                                 <div className="drawer-receipts-list">
                                     {paymentHistory.map((receipt, index) => (
                                         <div className="receipt-timeline-card" key={index}>
-                                            <div className="receipt-card-header">
+                                            <div className="receipt-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <span className="receipt-number">Receipt #{receipt.receipt_number.toString().padStart(4, '0')}</span>
-                                                <span className="receipt-date">{new Date(receipt.receipt_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                                <button 
+                                                    className="inline-view-receipt-btn"
+                                                    onClick={() => setSelectedReceiptIdForModal(receipt.id)}
+                                                    style={{
+                                                        padding: '4px 8px',
+                                                        background: '#EFF6FF',
+                                                        color: '#3B82F6',
+                                                        border: 'none',
+                                                        borderRadius: '6px',
+                                                        fontSize: '11px',
+                                                        fontWeight: '600',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                    }}
+                                                >
+                                                    <ReceiptText size={12} /> View Receipt
+                                                </button>
                                             </div>
                                             <div className="receipt-card-body">
                                                 <div className="receipt-detail">
@@ -732,6 +753,10 @@ Kindly arrange to clear this balance. Thank you.`;
                                                     <span>Payment Mode:</span>
                                                     <span>{receipt.payment_mode}</span>
                                                 </div>
+                                                <div className="receipt-detail">
+                                                    <span>Date:</span>
+                                                    <span>{new Date(receipt.receipt_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -740,6 +765,13 @@ Kindly arrange to clear this balance. Thank you.`;
                         </div>
                     </div>
                 </div>
+            )}
+            </div>
+            {selectedReceiptIdForModal && (
+                <ReceiptViewModal
+                    receiptId={selectedReceiptIdForModal}
+                    onClose={() => setSelectedReceiptIdForModal(null)}
+                />
             )}
         </div>
     );

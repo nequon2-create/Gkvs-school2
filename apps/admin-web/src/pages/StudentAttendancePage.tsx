@@ -25,7 +25,8 @@ export function StudentAttendancePage() {
             const { data, error } = await supabase
                 .from('classes')
                 .select('id, class_name, section')
-                .order('class_name');
+                .order('numeric_value', { ascending: true })
+                .order('class_name', { ascending: true });
             if (error) throw error;
 
             // Fetch current academic year

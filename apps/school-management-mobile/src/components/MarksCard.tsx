@@ -5,6 +5,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../config/supabase';
 
+const formatExamName = (name: string) => {
+    if (!name) return '';
+    return name.replace(/FA([1-4])/gi, 'F$1').replace(/SA([1-2])/gi, 'S$1');
+};
+
 interface MarksCardProps {
     visible: boolean;
     studentId: string;
@@ -167,7 +172,7 @@ export default function MarksCard({ visible, studentId, examId, onClose }: Marks
 
                             {/* Marks Card Title */}
                             <View style={styles.titleArea}>
-                                <Text style={styles.cardTitle}>MARKS CARD - {exam?.exam_type || exam?.exam_name || 'EXAM'}</Text>
+                                <Text style={styles.cardTitle}>MARKS CARD - {formatExamName(exam?.exam_type || exam?.exam_name || 'EXAM')}</Text>
                                 <Text style={styles.cardDate}>Date: {exam?.exam_date ? new Date(exam.exam_date).toLocaleDateString() : 'N/A'}</Text>
                             </View>
 

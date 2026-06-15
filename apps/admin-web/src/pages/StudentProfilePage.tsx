@@ -10,6 +10,8 @@ import {
     Line
 } from 'recharts';
 import { MarksCard } from '../components/marks/MarksCard';
+import { ReceiptViewModal } from '../components/shared/ReceiptViewModal';
+import { Printer, FileText, ReceiptText } from 'lucide-react';
 
 interface Student {
     id: string;
@@ -67,6 +69,10 @@ export function StudentProfilePage() {
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [history, setHistory] = useState<EnrollmentHistory[]>([]);
     const [loading, setLoading] = useState(true);
+    const [receipts, setReceipts] = useState<any[]>([]);
+    const [loadingReceipts, setLoadingReceipts] = useState(false);
+    const [feeInfo, setFeeInfo] = useState<any | null>(null);
+    const [selectedReceiptIdForModal, setSelectedReceiptIdForModal] = useState<string | null>(null);
 
     // Real stats calculated from database
     const [stats, setStats] = useState({
@@ -88,6 +94,8 @@ export function StudentProfilePage() {
             fetchMarks(id);
             fetchAttendance(id);
             fetchHistory(id);
+            fetchStudentReceipts(id);
+            fetchStudentFeeInfo(id);
         }
     }, [id]);
 
@@ -116,6 +124,35 @@ export function StudentProfilePage() {
             setHistory(formatted);
         } catch (err) {
             console.error('Error fetching history:', err);
+        }
+    };
+
+    const fetchStudentReceipts = async (studentId: string) => {
+        setLoadingReceipts(true);
+        try {
+            const { data } = await supabase
+                .from('fee_receipts')
+                .select('id, receipt_number, receipt_date, total_amount, amount_paid, payment_mode')
+                .eq('student_id', studentId)
+                .order('receipt_date', { ascending: false });
+            setReceipts(data || []);
+        } catch (err) {
+            console.error('Error fetching receipts:', err);
+        } finally {
+            setLoadingReceipts(false);
+        }
+    };
+
+    const fetchStudentFeeInfo = async (studentId: string) => {
+        try {
+            const { data } = await supabase
+                .from('student_fees')
+                .select('*')
+                .eq('student_id', studentId)
+                .maybeSingle();
+            setFeeInfo(data || null);
+        } catch (err) {
+            console.error('Error fetching student fee info:', err);
         }
     };
 
@@ -272,6 +309,7 @@ export function StudentProfilePage() {
 
     return (
         <div
+            className="student-profile-page-container"
             style={{
                 minHeight: '100vh',
                 background: 'linear-gradient(180deg, #4ECDC4 0%, #44A08D 100%)',
@@ -279,7 +317,8 @@ export function StudentProfilePage() {
                 fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
             }}
         >
-            {/* Header */}
+            <div className="no-print">
+                {/* Header */}
             <div
                 style={{
                     display: 'flex',
@@ -765,6 +804,113 @@ export function StudentProfilePage() {
                 </div>
             </div>
 
+            {/* Billing & Fee History Card */}
+            <div style={{ padding: '0 20px', marginTop: '20px', marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#fff', marginBottom: '12px' }}>
+                    💳 Billing & Fee History
+                </h3>
+                <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                    
+                    {/* Fee Overview Metrics */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
+                        <div style={{ background: '#F8FAFC', borderRadius: '12px', padding: '12px', textAlign: 'center', border: '1px solid #E2E8F0' }}>
+                            <div style={{ fontSize: '12px', color: '#64748B', fontWeight: '600' }}>Annual Total</div>
+                            <div style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A', marginTop: '4px' }}>
+                                ₹{(feeInfo?.total_amount || 0).toLocaleString('en-IN')}
+                            </div>
+                        </div>
+                        <div style={{ background: '#F0FDF4', borderRadius: '12px', padding: '12px', textAlign: 'center', border: '1px solid #DCFCE7' }}>
+                            <div style={{ fontSize: '12px', color: '#166534', fontWeight: '600' }}>Amount Paid</div>
+                            <div style={{ fontSize: '16px', fontWeight: '800', color: '#15803D', marginTop: '4px' }}>
+                                ₹{(feeInfo?.amount_paid || 0).toLocaleString('en-IN')}
+                            </div>
+                        </div>
+                        <div style={{ background: '#FEF2F2', borderRadius: '12px', padding: '12px', textAlign: 'center', border: '1px solid #FEE2E2' }}>
+                            <div style={{ fontSize: '12px', color: '#991B1B', fontWeight: '600' }}>Pending Bal.</div>
+                            <div style={{ fontSize: '16px', fontWeight: '800', color: '#B91C1C', marginTop: '4px' }}>
+                                ₹{(feeInfo?.amount_pending ?? (feeInfo?.total_amount || 0)).toLocaleString('en-IN')}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Receipts Timeline Title */}
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '700', color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Payment Timeline
+                    </h4>
+
+                    {/* Receipts List */}
+                    {loadingReceipts ? (
+                        <div style={{ textAlign: 'center', padding: '20px', color: '#6B7280' }}>
+                            Loading payment history...
+                        </div>
+                    ) : receipts.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '24px 0', color: '#9CA3AF', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                            <FileText size={32} style={{ color: '#D1D5DB' }} />
+                            <span>No receipts registered for this student yet.</span>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {receipts.map((receipt) => (
+                                <div 
+                                    key={receipt.id}
+                                    style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        border: '1px solid #E5E7EB',
+                                        padding: '12px 16px',
+                                        borderRadius: '12px',
+                                        background: '#F9FAFB'
+                                    }}
+                                >
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '14px', fontWeight: '700', color: '#1D1D1F' }}>
+                                                Receipt #{receipt.receipt_number.toString().padStart(4, '0')}
+                                            </span>
+                                            <span style={{
+                                                padding: '2px 8px',
+                                                borderRadius: '8px',
+                                                fontSize: '11px',
+                                                fontWeight: '700',
+                                                backgroundColor: receipt.payment_mode === 'Cash' ? '#FEF3C7' : '#E0F2FE',
+                                                color: receipt.payment_mode === 'Cash' ? '#B45309' : '#0369A1'
+                                            }}>
+                                                {receipt.payment_mode}
+                                            </span>
+                                        </div>
+                                        <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>
+                                            Paid: <strong style={{ color: '#15803D' }}>₹{receipt.amount_paid.toLocaleString('en-IN')}</strong> on {new Date(receipt.receipt_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <button
+                                            onClick={() => setSelectedReceiptIdForModal(receipt.id)}
+                                            style={{
+                                                padding: '8px 14px',
+                                                background: '#EFF6FF',
+                                                color: '#3B82F6',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                cursor: 'pointer',
+                                                fontSize: '13px',
+                                                fontWeight: '700',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                transition: 'all 0.2s'
+                                            }}
+                                        >
+                                            <ReceiptText size={14} /> View Receipt
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* Academic History */}
             {history.length > 0 && (
                 <div style={{ padding: '0 20px', marginTop: '20px' }}>
@@ -803,6 +949,15 @@ export function StudentProfilePage() {
                     studentId={student.id}
                     examId={selectedExamId}
                     onClose={() => setSelectedExamId(null)}
+                />
+            )}
+            </div>
+
+            {/* Reusable Receipt View Modal */}
+            {selectedReceiptIdForModal && (
+                <ReceiptViewModal
+                    receiptId={selectedReceiptIdForModal}
+                    onClose={() => setSelectedReceiptIdForModal(null)}
                 />
             )}
         </div >

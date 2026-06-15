@@ -41,7 +41,8 @@ export function MarkAttendancePage() {
         const { data } = await supabase
             .from('classes')
             .select('*')
-            .order('numeric_value', { ascending: true });
+            .order('numeric_value', { ascending: true })
+            .order('class_name', { ascending: true });
 
         if (data) setClasses(data);
     };

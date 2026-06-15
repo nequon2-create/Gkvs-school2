@@ -25,7 +25,8 @@ export function UploadAttendanceSheet({ type, onClose, onSuccess }: UploadAttend
         const { data } = await supabase
             .from('classes')
             .select('id, class_name, section')
-            .order('class_name');
+            .order('numeric_value', { ascending: true })
+            .order('class_name', { ascending: true });
         setClasses(data || []);
     };
 

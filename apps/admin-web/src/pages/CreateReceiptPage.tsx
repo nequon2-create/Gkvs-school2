@@ -48,7 +48,7 @@ export function CreateReceiptPage() {
 
     // 13 Fee Categories matching the physical receipt
     const [feeItems, setFeeItems] = useState<FeeItem[]>([
-        { id: 1, label_kn: 'ಪ್ರವೇಶ/ಪುನಃ ಪ್ರವೇಶ', label_en: 'Admn./Re-Admfn. Fee', amount: 0 },
+        { id: 1, label_kn: 'ಪ್ರವೇಶ/ಪುನಃ ಪ್ರವೇಶ', label_en: 'Admn. / Re-Admn. Fee', amount: 0 },
         { id: 2, label_kn: 'ಬೋಧನಾ ಶುಲ್ಕ', label_en: 'Tuition Fee', amount: 0 },
         { id: 3, label_kn: 'ಅಭಿವೃದ್ಧಿ ಶುಲ್ಕ', label_en: 'Betterment Fee', amount: 0 },
         { id: 4, label_kn: 'ಕ್ರೀಡಾ ಶುಲ್ಕ', label_en: 'Sports Fee', amount: 0 },
@@ -56,8 +56,8 @@ export function CreateReceiptPage() {
         { id: 6, label_kn: 'ವೈದ್ಯಕೀಯ ಶುಲ್ಕ', label_en: 'Medical Fee', amount: 0 },
         { id: 7, label_kn: 'ಪ್ರಯೋಗಶಾಲಾ ಶುಲ್ಕ', label_en: 'Laboratory Fee', amount: 0 },
         { id: 8, label_kn: 'ಶ್ರವಣ-ದೃಶ್ಯ ಶಿಕ್ಷಣ ಶುಲ್ಕ', label_en: 'AVE Fee', amount: 0 },
-        { id: 9, label_kn: 'ವید್ಯಾರ್ಥಿ ಕ್ಷೇಮಾಭಿವೃದ್ಧಿ ನಿಧಿ', label_en: 'SWF', amount: 0 },
-        { id: 10, label_kn: 'ಉಾಧಯಾಯರ ಕಲ್ಯಾಣ ನಿಧಿ', label_en: 'TBF', amount: 0 },
+        { id: 9, label_kn: 'ವಿದ್ಯಾರ್ಥಿ ಕ್ಷೇಮಾಭಿವೃದ್ಧಿ ನಿಧಿ', label_en: 'SWF', amount: 0 },
+        { id: 10, label_kn: 'ಉಪಾಧ್ಯಾಯರ ಕಲ್ಯಾಣ ನಿಧಿ', label_en: 'TBF', amount: 0 },
         { id: 11, label_kn: 'ಪರೀಕ್ಷಾ ಶುಲ್ಕ', label_en: 'Examination Fee', amount: 0 },
         { id: 12, label_kn: 'ದಂಡ', label_en: 'Fines', amount: 0 },
         { id: 13, label_kn: 'ಇತರೆ', label_en: 'Others', amount: 0 }
@@ -99,7 +99,101 @@ export function CreateReceiptPage() {
         setSearchResults(data || []);
     };
 
+    const fetchStudentFeesForReceipt = async (studentId: string, classId: string, academicYearId: string) => {
+        try {
+            // 1. Try to fetch custom student fees
+            const { data: sfData, error: sfErr } = await supabase
+                .from('student_fees')
+                .select('*')
+                .eq('student_id', studentId)
+                .eq('academic_year_id', academicYearId)
+                .maybeSingle();
+
+            if (sfErr) throw sfErr;
+
+            // Check if student has a populated custom breakdown
+            const hasBreakdown = sfData && (
+                Number(sfData.admission_fee) > 0 ||
+                Number(sfData.tuition_fee) > 0 ||
+                Number(sfData.betterment_fee) > 0 ||
+                Number(sfData.sports_fee) > 0 ||
+                Number(sfData.reading_room_fee) > 0 ||
+                Number(sfData.medical_fee) > 0 ||
+                Number(sfData.laboratory_fee) > 0 ||
+                Number(sfData.ave_fee) > 0 ||
+                Number(sfData.swf) > 0 ||
+                Number(sfData.tbf) > 0 ||
+                Number(sfData.examination_fee) > 0 ||
+                Number(sfData.fines) > 0 ||
+                Number(sfData.others) > 0
+            );
+
+            if (hasBreakdown) {
+                // Pre-populate with student custom fees
+                const items = [
+                    { id: 1, label_kn: 'ಪ್ರವೇಶ/ಪುನಃ ಪ್ರವೇಶ', label_en: 'Admn. / Re-Admn. Fee', amount: Number(sfData.admission_fee) || 0 },
+                    { id: 2, label_kn: 'ಬೋಧನಾ ಶುಲ್ಕ', label_en: 'Tuition Fee', amount: Number(sfData.tuition_fee) || 0 },
+                    { id: 3, label_kn: 'ಅಭಿವೃದ್ಧಿ ಶುಲ್ಕ', label_en: 'Betterment Fee', amount: Number(sfData.betterment_fee) || 0 },
+                    { id: 4, label_kn: 'ಕ್ರೀಡಾ ಶುಲ್ಕ', label_en: 'Sports Fee', amount: Number(sfData.sports_fee) || 0 },
+                    { id: 5, label_kn: 'ವಾಚನಾಲಯ ಶುಲ್ಕ', label_en: 'Reading Room Fee', amount: Number(sfData.reading_room_fee) || 0 },
+                    { id: 6, label_kn: 'ವೈದ್ಯಕೀಯ ಶುಲ್ಕ', label_en: 'Medical Fee', amount: Number(sfData.medical_fee) || 0 },
+                    { id: 7, label_kn: 'ಪ್ರಯೋಗಶಾಲಾ ಶುಲ್ಕ', label_en: 'Laboratory Fee', amount: Number(sfData.laboratory_fee) || 0 },
+                    { id: 8, label_kn: 'ಶ್ರವಣ-ದೃಶ್ಯ ಶಿಕ್ಷಣ ಶುಲ್ಕ', label_en: 'AVE Fee', amount: Number(sfData.ave_fee) || 0 },
+                    { id: 9, label_kn: 'ವಿದ್ಯಾರ್ಥಿ ಕ್ಷೇಮಾಭಿವೃದ್ಧಿ ನಿಧಿ', label_en: 'SWF', amount: Number(sfData.swf) || 0 },
+                    { id: 10, label_kn: 'ಉಪಾಧ್ಯಾಯರ ಕಲ್ಯಾಣ ನಿಧಿ', label_en: 'TBF', amount: Number(sfData.tbf) || 0 },
+                    { id: 11, label_kn: 'ಪರೀಕ್ಷಾ ಶುಲ್ಕ', label_en: 'Examination Fee', amount: Number(sfData.examination_fee) || 0 },
+                    { id: 12, label_kn: 'ದಂಡ', label_en: 'Fines', amount: Number(sfData.fines) || 0 },
+                    { id: 13, label_kn: 'ಇತರೆ', label_en: 'Others', amount: Number(sfData.others) || 0 }
+                ];
+                setFeeItems(items);
+                return;
+            }
+
+            // 2. If no custom student fees breakdown, fetch class defaults
+            if (classId) {
+                const { data: cfData, error: cfErr } = await supabase
+                    .from('class_fees')
+                    .select('*')
+                    .eq('class_id', classId)
+                    .eq('academic_year_id', academicYearId)
+                    .maybeSingle();
+
+                if (cfErr) throw cfErr;
+
+                if (cfData) {
+                    const items = [
+                        { id: 1, label_kn: 'ಪ್ರವೇಶ/ಪುನಃ ಪ್ರವೇಶ', label_en: 'Admn. / Re-Admn. Fee', amount: Number(cfData.admission_fee) || 0 },
+                        { id: 2, label_kn: 'ಬೋಧನಾ ಶುಲ್ಕ', label_en: 'Tuition Fee', amount: Number(cfData.tuition_fee) || 0 },
+                        { id: 3, label_kn: 'ಅಭಿವೃದ್ಧಿ ಶುಲ್ಕ', label_en: 'Betterment Fee', amount: Number(cfData.betterment_fee) || 0 },
+                        { id: 4, label_kn: 'ಕ್ರೀಡಾ ಶುಲ್ಕ', label_en: 'Sports Fee', amount: Number(cfData.sports_fee) || 0 },
+                        { id: 5, label_kn: 'ವಾಚನಾಲಯ ಶುಲ್ಕ', label_en: 'Reading Room Fee', amount: Number(cfData.reading_room_fee) || 0 },
+                        { id: 6, label_kn: 'ವೈದ್ಯಕೀಯ ಶುಲ್ಕ', label_en: 'Medical Fee', amount: Number(cfData.medical_fee) || 0 },
+                        { id: 7, label_kn: 'ಪ್ರಯೋಗಶಾಲಾ ಶುಲ್ಕ', label_en: 'Laboratory Fee', amount: Number(cfData.laboratory_fee) || 0 },
+                        { id: 8, label_kn: 'ಶ್ರವಣ-ದೃಶ್ಯ ಶಿಕ್ಷಣ ಶುಲ್ಕ', label_en: 'AVE Fee', amount: Number(cfData.ave_fee) || 0 },
+                        { id: 9, label_kn: 'ವಿದ್ಯಾರ್ಥಿ ಕ್ಷೇಮಾಭಿವೃದ್ಧಿ ನಿಧಿ', label_en: 'SWF', amount: Number(cfData.swf) || 0 },
+                        { id: 10, label_kn: 'ಉಪಾಧ್ಯಾಯರ ಕಲ್ಯಾಣ ನಿಧಿ', label_en: 'TBF', amount: Number(cfData.tbf) || 0 },
+                        { id: 11, label_kn: 'ಪರೀಕ್ಷಾ ಶುಲ್ಕ', label_en: 'Examination Fee', amount: Number(cfData.examination_fee) || 0 },
+                        { id: 12, label_kn: 'ದಂಡ', label_en: 'Fines', amount: Number(cfData.fines) || 0 },
+                        { id: 13, label_kn: 'ಇತರೆ', label_en: 'Others', amount: Number(cfData.others) || 0 }
+                    ];
+                    setFeeItems(items);
+                    return;
+                }
+            }
+
+            // 3. Fallback: reset all to 0
+            const resetItems = feeItems.map(item => ({ ...item, amount: 0 }));
+            setFeeItems(resetItems);
+        } catch (error) {
+            console.error('Error fetching student fees for receipt:', error);
+            // Fallback reset
+            const resetItems = feeItems.map(item => ({ ...item, amount: 0 }));
+            setFeeItems(resetItems);
+        }
+    };
+
     const handleSelectStudent = (student: any) => {
+        const acadYearId = student.academic_year_id || studentInfo.academic_year_id;
         setStudentInfo({
             id: student.id,
             registration_number: student.registration_number || '',
@@ -108,10 +202,11 @@ export function CreateReceiptPage() {
             class_name: student.classes?.class_name || '',
             section: student.classes?.section || '',
             roll_number: student.roll_number || '',
-            academic_year_id: student.academic_year_id || studentInfo.academic_year_id
+            academic_year_id: acadYearId
         });
         setSearchQuery('');
         setSearchResults([]);
+        fetchStudentFeesForReceipt(student.id, student.class_id, acadYearId);
     };
 
     const handleFeeAmountChange = (id: number, val: string) => {

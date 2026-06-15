@@ -48,15 +48,44 @@ export function HomeworkPage() {
 
     useEffect(() => {
         fetchData();
-        fetchSubjects();
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         setDueDate(tomorrow.toISOString().split('T')[0]);
     }, []);
 
-    const fetchSubjects = async () => {
-        const { data } = await supabase.from('subjects').select('id, subject_name').order('subject_name');
-        setSubjects(data || []);
+    useEffect(() => {
+        if (selectedClassId) {
+            fetchSubjects(selectedClassId);
+        } else {
+            setSubjects([]);
+            setSubjectId('');
+        }
+    }, [selectedClassId]);
+
+    const fetchSubjects = async (classId: string) => {
+        const { data } = await supabase
+            .from('subjects')
+            .select('id, subject_name, class_id')
+            .or(`class_id.eq.${classId},class_id.is.null`)
+            .order('subject_name');
+        
+        if (data) {
+            const sorted = [...data].sort((a: any, b: any) => {
+                if (a.class_id && !b.class_id) return -1;
+                if (!a.class_id && b.class_id) return 1;
+                return 0;
+            });
+            const unique: Subject[] = [];
+            const seen = new Set();
+            for (const item of sorted) {
+                const nameKey = item.subject_name.trim().toLowerCase();
+                if (!seen.has(nameKey)) {
+                    seen.add(nameKey);
+                    unique.push(item);
+                }
+            }
+            setSubjects(unique);
+        }
     };
 
     const fetchData = async () => {

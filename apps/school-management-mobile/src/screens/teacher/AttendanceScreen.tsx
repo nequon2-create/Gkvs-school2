@@ -30,7 +30,10 @@ export default function TeacherAttendanceScreen() {
 
     const fetchClasses = async () => {
         const { data } = await supabase
-            .from('classes').select('*').order('class_name');
+            .from('classes')
+            .select('*')
+            .order('numeric_value', { ascending: true })
+            .order('class_name', { ascending: true });
         setClasses(data ?? []);
         setLoading(false); setRefreshing(false);
     };

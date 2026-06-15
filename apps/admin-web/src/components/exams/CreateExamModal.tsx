@@ -33,7 +33,8 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
         const { data: classesData } = await supabase
             .from('classes')
             .select('id, class_name, section')
-            .order('class_name');
+            .order('numeric_value', { ascending: true })
+            .order('class_name', { ascending: true });
         setClasses(classesData || []);
 
         // Fetch academic years
@@ -42,23 +43,51 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
             .select('id, year_name')
             .order('year_name', { ascending: false });
         setAcademicYears(yearsData || []);
+    };
 
-        // Fetch subjects
+    useEffect(() => {
+        if (selectedClass) {
+            fetchSubjects(selectedClass);
+        } else {
+            setSchedules([]);
+        }
+    }, [selectedClass]);
+
+    const fetchSubjects = async (classId: string) => {
         const { data: subjectsData } = await supabase
             .from('subjects')
-            .select('id, subject_name')
+            .select('id, subject_name, class_id')
+            .or(`class_id.eq.${classId},class_id.is.null`)
             .order('subject_name');
 
-        const initialSchedules: SubjectSchedule[] =
-            subjectsData?.map((s) => ({
+        if (subjectsData) {
+            // Sort to prioritize class-specific subjects over global ones
+            const sorted = [...subjectsData].sort((a: any, b: any) => {
+                if (a.class_id && !b.class_id) return -1;
+                if (!a.class_id && b.class_id) return 1;
+                return 0;
+            });
+            // Deduplicate by name key
+            const unique: any[] = [];
+            const seen = new Set();
+            for (const item of sorted) {
+                const nameKey = item.subject_name.trim().toLowerCase();
+                if (!seen.has(nameKey)) {
+                    seen.add(nameKey);
+                    unique.push(item);
+                }
+            }
+            const initialSchedules: SubjectSchedule[] = unique.map((s) => ({
                 subject_id: s.id,
                 subject_name: s.subject_name,
                 date: '',
                 time: '09:00',
                 selected: false,
-            })) || [];
-
-        setSchedules(initialSchedules);
+            }));
+            setSchedules(initialSchedules);
+        } else {
+            setSchedules([]);
+        }
     };
 
     const handleScheduleChange = (subjectId: string, field: 'selected' | 'date' | 'time', value: any) => {
@@ -276,64 +305,70 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
                         Select Subjects & Schedule
                     </h3>
                     <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                        {schedules.map((schedule) => (
-                            <div
-                                key={schedule.subject_id}
-                                style={{
-                                    padding: '16px',
-                                    background: schedule.selected ? '#E8F4FF' : '#F5F5F7',
-                                    borderRadius: '12px',
-                                    marginBottom: '12px',
-                                    border: schedule.selected ? '2px solid #0071E3' : '2px solid transparent',
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={schedule.selected}
-                                        onChange={(e) =>
-                                            handleScheduleChange(schedule.subject_id, 'selected', e.target.checked)
-                                        }
-                                        style={{ width: '20px', height: '20px' }}
-                                    />
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ fontSize: '15px', fontWeight: '600', color: '#1D1D1F' }}>
-                                            {schedule.subject_name}
-                                        </div>
-                                    </div>
-                                    {schedule.selected && (
-                                        <>
-                                            <input
-                                                type="date"
-                                                value={schedule.date}
-                                                onChange={(e) =>
-                                                    handleScheduleChange(schedule.subject_id, 'date', e.target.value)
-                                                }
-                                                style={{
-                                                    padding: '8px 12px',
-                                                    borderRadius: '8px',
-                                                    border: '1px solid rgba(0,0,0,0.1)',
-                                                    fontSize: '14px',
-                                                }}
-                                            />
-                                            <input
-                                                type="time"
-                                                value={schedule.time}
-                                                onChange={(e) =>
-                                                    handleScheduleChange(schedule.subject_id, 'time', e.target.value)
-                                                }
-                                                style={{
-                                                    padding: '8px 12px',
-                                                    borderRadius: '8px',
-                                                    border: '1px solid rgba(0,0,0,0.1)',
-                                                    fontSize: '14px',
-                                                }}
-                                            />
-                                        </>
-                                    )}
-                                </div>
+                        {schedules.length === 0 ? (
+                            <div style={{ color: '#86868B', fontSize: '14px', textAlign: 'center', padding: '24px', background: '#F5F5F7', borderRadius: '12px' }}>
+                                {selectedClass ? 'No subjects found for the selected class.' : 'Please select a class to load subjects.'}
                             </div>
-                        ))}
+                        ) : (
+                            schedules.map((schedule) => (
+                                <div
+                                    key={schedule.subject_id}
+                                    style={{
+                                        padding: '16px',
+                                        background: schedule.selected ? '#E8F4FF' : '#F5F5F7',
+                                        borderRadius: '12px',
+                                        marginBottom: '12px',
+                                        border: schedule.selected ? '2px solid #0071E3' : '2px solid transparent',
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={schedule.selected}
+                                            onChange={(e) =>
+                                                handleScheduleChange(schedule.subject_id, 'selected', e.target.checked)
+                                            }
+                                            style={{ width: '20px', height: '20px' }}
+                                        />
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontSize: '15px', fontWeight: '600', color: '#1D1D1F' }}>
+                                                {schedule.subject_name}
+                                            </div>
+                                        </div>
+                                        {schedule.selected && (
+                                            <>
+                                                <input
+                                                    type="date"
+                                                    value={schedule.date}
+                                                    onChange={(e) =>
+                                                        handleScheduleChange(schedule.subject_id, 'date', e.target.value)
+                                                    }
+                                                    style={{
+                                                        padding: '8px 12px',
+                                                        borderRadius: '8px',
+                                                        border: '1px solid rgba(0,0,0,0.1)',
+                                                        fontSize: '14px',
+                                                    }}
+                                                />
+                                                <input
+                                                    type="time"
+                                                    value={schedule.time}
+                                                    onChange={(e) =>
+                                                        handleScheduleChange(schedule.subject_id, 'time', e.target.value)
+                                                    }
+                                                    style={{
+                                                        padding: '8px 12px',
+                                                        borderRadius: '8px',
+                                                        border: '1px solid rgba(0,0,0,0.1)',
+                                                        fontSize: '14px',
+                                                    }}
+                                                />
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                        )}
                     </div>
                 </div>
 

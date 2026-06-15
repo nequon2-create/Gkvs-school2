@@ -482,8 +482,7 @@ export default function TeacherLeaderboardScreen({ navigation }: any) {
                     </View>
                 </ScrollView>
             ) : (
-                <View style={{ flex: 1 }}>
-                    <ScrollView
+                <ScrollView
                         contentContainerStyle={styles.scrollContent}
                         showsVerticalScrollIndicator={false}
                         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00F2FE" />}
@@ -592,13 +591,13 @@ export default function TeacherLeaderboardScreen({ navigation }: any) {
                                                 {/* Column 3: Name & Rank Level Rectangular Text Box */}
                                                 <View style={[styles.rowDetailsCol, { backgroundColor: detailsBg, borderColor: detailsBorder }]}>
                                                     <Text style={[styles.detailsHeaderLabel, { color: rankLabelColor }]}>
-                                                        [STUDENT NAME]
+                                                        STUDENT NAME
                                                     </Text>
                                                     <Text style={[styles.rowStudentName, { color: studentNameColor }]} numberOfLines={1}>
                                                         {student.full_name.toUpperCase()}
-                                                    </Text>
+                                                     </Text>
                                                     <Text style={[styles.rowRankLabel, { color: rankLabelColor }]}>
-                                                        [{rankLevelText}] {student.rank <= 3 ? 'ELITE I' : 'CHAMP II'}
+                                                        {rankLevelText} • {student.rank <= 3 ? 'ELITE I' : 'CHAMP II'}
                                                     </Text>
                                                 </View>
 
@@ -625,7 +624,6 @@ export default function TeacherLeaderboardScreen({ navigation }: any) {
                             </View>
                         )}
                     </ScrollView>
-                </View>
             )}
 
             {/* 3D Throw Card Popup Overlay Modal */}

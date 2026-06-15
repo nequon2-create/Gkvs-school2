@@ -38,7 +38,8 @@ export function UploadMarksModal({ onClose, onSuccess }: UploadMarksModalProps) 
         const { data } = await supabase
             .from('classes')
             .select('id, class_name, section')
-            .order('class_name');
+            .order('numeric_value', { ascending: true })
+            .order('class_name', { ascending: true });
         setClasses(data || []);
     };
 
@@ -216,7 +217,7 @@ export function UploadMarksModal({ onClose, onSuccess }: UploadMarksModalProps) 
             for (const row of jsonData) {
                 const studentIdRaw = row['Student_id'];
                 if (!studentIdRaw) {
-                    skippedRows.push('Row with missing Student_id');
+                    // Silently ignore empty rows (common at the bottom of sheet exports)
                     continue;
                 }
 

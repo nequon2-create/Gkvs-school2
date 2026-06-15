@@ -41,3 +41,13 @@ yarn-error.log*
 
 # TypeScript
 *.tsbuildinfo
+
+# Expo & Local Scratch
+.expo/
+scratch/
+*.js
+*.ts
+*.sql
+!supabase/migrations/*.sql
+!apps/admin-web/src/run_visual_tests.js
+

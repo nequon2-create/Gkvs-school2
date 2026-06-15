@@ -53,7 +53,8 @@ export function StudentFilters({ onFilterChange }: StudentFiltersProps) {
         const { data } = await supabase
             .from('classes')
             .select('id, class_name, section')
-            .order('class_name', { ascending: true }); // ✅ Simple ordering by name
+            .order('numeric_value', { ascending: true })
+            .order('class_name', { ascending: true });
 
         if (data) setClasses(data);
     };

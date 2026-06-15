@@ -15,6 +15,7 @@ export function useClasses() {
             const { data, error: fetchError } = await supabase
                 .from('classes')
                 .select('*')
+                .order('numeric_value', { ascending: true })
                 .order('class_name', { ascending: true });
 
             if (fetchError) throw fetchError;
