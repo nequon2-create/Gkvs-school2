@@ -1013,7 +1013,7 @@ export function MarksPage() {
                                             <th style={{ position: 'sticky', left: '270px', zIndex: 11, background: '#F8F9FA', textAlign: 'left', padding: '12px', fontSize: '14px', fontWeight: '600', color: '#4B5563', width: '180px', minWidth: '180px', borderBottom: '2px solid #E5E7EB', borderRight: '2px solid #D1D5DB' }}>Student Name</th>
                                             
                                             {/* Dynamic Subject Headers with editable Max Marks */}
-                                            {visibleSubjects.map((sub, subIdx) => (
+                                            {visibleSubjects.map((sub) => (
                                                 <th key={sub.id} style={{ textAlign: 'center', padding: '12px', fontSize: '14px', fontWeight: '600', color: '#4B5563', minWidth: '120px', borderBottom: '2px solid #E5E7EB', borderRight: '1px solid #E5E7EB' }}>
                                                     <div style={{ fontSize: '13px', marginBottom: '4px' }}>{sub.subject_name}</div>
                                                     <div style={{ fontSize: '10px', color: '#86868B', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>

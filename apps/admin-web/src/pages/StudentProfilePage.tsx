@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { MarksCard } from '../components/marks/MarksCard';
 import { ReceiptViewModal } from '../components/shared/ReceiptViewModal';
-import { Printer, FileText, ReceiptText } from 'lucide-react';
+import { FileText, ReceiptText } from 'lucide-react';
 
 interface Student {
     id: string;
