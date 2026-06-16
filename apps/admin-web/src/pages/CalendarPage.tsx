@@ -4,13 +4,10 @@ import {
     CalendarDays, 
     AlertCircle, 
     Plus, 
-    Calendar as CalendarIcon, 
-    Clock, 
     ChevronLeft, 
     ChevronRight, 
     X, 
-    Trash2, 
-    FileText 
+    Trash2 
 } from 'lucide-react';
 import { uploadFileToStorage } from '../utils/storage';
 import './CalendarPage.css';
