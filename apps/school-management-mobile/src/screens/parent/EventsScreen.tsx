@@ -1,14 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, RefreshControl, StatusBar, ActivityIndicator, Dimensions, Platform, TouchableOpacity, Modal, Image
 } from 'react-native';
-import { WebView } from 'react-native-webview';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { Calendar } from 'react-native-calendars';
 import { supabase } from '../../config/supabase';
 import { Event } from '../../types';
-
-const { width } = Dimensions.get('window');
 
 const EVENT_COLORS: Record<string, string> = {
     holiday: '#EF4444',
@@ -19,31 +17,27 @@ const EVENT_COLORS: Record<string, string> = {
     other: '#6B7280',
 };
 
+const getTodayString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 export default function ParentEventsScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [events, setEvents] = useState<Event[]>([]);
-    const [calendarUrl, setCalendarUrl] = useState<string | null>(null);
+    const [selectedDate, setSelectedDate] = useState<string>(getTodayString());
     const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
     const fetchEvents = async () => {
         try {
-            // Fetch Calendar URL
-            const { data: settings } = await supabase
-                .from('school_settings')
-                .select('calendar_embed_url')
-                .limit(1);
-
-            if (settings && settings.length > 0 && settings[0].calendar_embed_url) {
-                setCalendarUrl(settings[0].calendar_embed_url);
-            }
-
-            // Fetch Events
-            const today = new Date().toISOString().split('T')[0];
+            // Fetch all Events for the calendar grid
             const { data } = await supabase
                 .from('events')
                 .select('*')
-                .gte('date', today)
                 .order('date', { ascending: true });
             setEvents(data ?? []);
         } catch (e) {
@@ -63,12 +57,78 @@ export default function ParentEventsScreen() {
         fetchEvents();
     };
 
-    const grouped: Record<string, Event[]> = {};
-    events.forEach((e) => {
-        const month = new Date(e.date).toLocaleString('default', { month: 'long', year: 'numeric' });
-        if (!grouped[month]) grouped[month] = [];
-        grouped[month].push(e);
-    });
+    // Filter events for the selected date
+    const selectedDateEvents = useMemo(() => {
+        return events.filter((e) => {
+            if (!e.date) return false;
+            return e.date.split('T')[0] === selectedDate;
+        });
+    }, [events, selectedDate]);
+
+    // Filter and group upcoming events starting from today (excluding past events in the upcoming list)
+    const groupedUpcoming = useMemo(() => {
+        const todayStr = getTodayString();
+        const upcoming = events.filter((e) => e.date >= todayStr);
+        const grouped: Record<string, Event[]> = {};
+        
+        upcoming.forEach((e) => {
+            const month = new Date(e.date).toLocaleString('default', { month: 'long', year: 'numeric' });
+            if (!grouped[month]) grouped[month] = [];
+            grouped[month].push(e);
+        });
+        return grouped;
+    }, [events]);
+
+    // Generate marked dates for react-native-calendars
+    const markedDates = useMemo(() => {
+        const marked: Record<string, any> = {};
+
+        // Populate event dots
+        events.forEach((e) => {
+            if (!e.date) return;
+            const dateStr = e.date.split('T')[0];
+            const type = e.type?.toLowerCase() ?? 'other';
+            const color = EVENT_COLORS[type] ?? EVENT_COLORS.other;
+
+            if (!marked[dateStr]) {
+                marked[dateStr] = {
+                    marked: true,
+                    dots: [],
+                };
+            }
+
+            // Limit to max 3 dots per cell to avoid layout clutter
+            if (marked[dateStr].dots.length < 3) {
+                marked[dateStr].dots.push({
+                    key: `${e.id}`,
+                    color: color,
+                    selectedDotColor: '#FFFFFF',
+                });
+            }
+        });
+
+        // Highlight selected date
+        if (selectedDate) {
+            marked[selectedDate] = {
+                ...marked[selectedDate],
+                selected: true,
+                selectedColor: '#A855F7',
+            };
+        }
+
+        return marked;
+    }, [events, selectedDate]);
+
+    const formatSelectedDate = (dateStr: string) => {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return dateStr;
+        return date.toLocaleDateString('en-IN', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+        });
+    };
 
     return (
         <LinearGradient colors={['#090514', '#150E28', '#07040E']} style={{ flex: 1 }}>
@@ -97,38 +157,114 @@ export default function ParentEventsScreen() {
                     showsVerticalScrollIndicator={false}
                 >
                     <View style={styles.body}>
-                        {calendarUrl ? (
-                            <View style={styles.calendarContainer}>
-                                {Platform.OS === 'web' ? (
-                                    <iframe
-                                        src={calendarUrl}
-                                        style={{ width: '100%', height: '100%', border: 0 }}
-                                        title="School Calendar"
-                                    />
-                                ) : (
-                                    <WebView
-                                        source={{ uri: calendarUrl }}
-                                        style={styles.webview}
-                                        scrollEnabled={true}
-                                        javaScriptEnabled={true}
-                                        domStorageEnabled={true}
-                                        startInLoadingState={true}
-                                        scalesPageToFit={true}
-                                        showsVerticalScrollIndicator={false}
-                                        showsHorizontalScrollIndicator={false}
+                        {/* Native Calendar Grid */}
+                        <View style={styles.calendarContainer}>
+                            <Calendar
+                                current={selectedDate}
+                                onDayPress={(day) => setSelectedDate(day.dateString)}
+                                monthFormat={'MMMM yyyy'}
+                                firstDay={1}
+                                hideExtraDays={false}
+                                disableMonthChange={false}
+                                enableSwipeMonths={true}
+                                markingType={'multi-dot'}
+                                markedDates={markedDates}
+                                renderArrow={(direction) => (
+                                    <Ionicons 
+                                        name={direction === 'left' ? 'chevron-back' : 'chevron-forward'} 
+                                        size={20} 
+                                        color="#A855F7" 
                                     />
                                 )}
-                            </View>
-                        ) : null}
+                                theme={{
+                                    backgroundColor: '#150E28',
+                                    calendarBackground: '#150E28',
+                                    textSectionTitleColor: 'rgba(255, 255, 255, 0.6)',
+                                    selectedDayBackgroundColor: '#A855F7',
+                                    selectedDayTextColor: '#FFFFFF',
+                                    todayTextColor: '#A855F7',
+                                    dayTextColor: '#FFFFFF',
+                                    textDisabledColor: 'rgba(255, 255, 255, 0.25)',
+                                    dotColor: '#A855F7',
+                                    selectedDotColor: '#FFFFFF',
+                                    arrowColor: '#A855F7',
+                                    monthTextColor: '#FFFFFF',
+                                    textDayFontWeight: '500',
+                                    textMonthFontWeight: 'bold',
+                                    textDayHeaderFontWeight: '600',
+                                    textDayFontSize: 14,
+                                    textMonthFontSize: 16,
+                                    textDayHeaderFontSize: 12
+                                }}
+                            />
+                        </View>
 
-                        {Object.keys(grouped).length === 0 ? (
+                        {/* Selected Date Events */}
+                        <View style={styles.sectionHeaderContainer}>
+                            <Text style={styles.sectionTitle}>
+                                {selectedDate === getTodayString() ? "TODAY'S EVENTS" : "SCHEDULED EVENTS"}
+                            </Text>
+                            <Text style={styles.dateSubtitle}>{formatSelectedDate(selectedDate)}</Text>
+                        </View>
+
+                        {selectedDateEvents.length === 0 ? (
+                            <View style={styles.emptyDayCard}>
+                                <Ionicons name="calendar-clear-outline" size={28} color="rgba(255, 255, 255, 0.2)" />
+                                <Text style={styles.emptyDayText}>No events scheduled for this day</Text>
+                            </View>
+                        ) : (
+                            selectedDateEvents.map((event) => {
+                                const eventType = event.type?.toLowerCase() ?? 'other';
+                                const color = EVENT_COLORS[eventType] ?? EVENT_COLORS.other;
+                                return (
+                                    <TouchableOpacity
+                                        key={`sel-${event.id}`}
+                                        style={[styles.eventCard, { borderLeftColor: color }]}
+                                        onPress={() => setSelectedEvent(event)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={styles.eventLeft}>
+                                            <Text style={[styles.eventDay, { color }]}>
+                                                {new Date(event.date).getDate()}
+                                            </Text>
+                                            <Text style={styles.eventWeekday}>
+                                                {new Date(event.date).toLocaleString('default', { weekday: 'short' })}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.eventRight}>
+                                            <Text style={styles.eventTitle}>{event.title}</Text>
+                                            {event.description ? (
+                                                <Text style={styles.eventDesc} numberOfLines={2}>{event.description}</Text>
+                                            ) : null}
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                                                {event.type ? (
+                                                    <View style={[styles.typeBadge, { backgroundColor: color + '15' }]}>
+                                                        <Text style={[styles.typeText, { color }]}>{event.type.toUpperCase()}</Text>
+                                                    </View>
+                                                ) : <View />}
+                                                {event.images && event.images.length > 0 && (
+                                                    <Ionicons name="image-outline" size={16} color="rgba(255, 255, 255, 0.4)" />
+                                                )}
+                                            </View>
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            })
+                        )}
+
+                        {/* Upcoming Events */}
+                        <View style={[styles.sectionHeaderContainer, { marginTop: 28 }]}>
+                            <Text style={styles.sectionTitle}>ALL UPCOMING EVENTS</Text>
+                        </View>
+
+                        {Object.keys(groupedUpcoming).length === 0 ? (
                             <View style={styles.emptyCard}>
                                 <Ionicons name="calendar-outline" size={48} color="rgba(255, 255, 255, 0.2)" />
-                                <Text style={styles.emptyTitle}>No Events Yet</Text>
+                                <Text style={styles.emptyTitle}>No Upcoming Events</Text>
                                 <Text style={styles.emptySub}>Check back later for upcoming school events</Text>
                             </View>
                         ) : (
-                            Object.entries(grouped).map(([month, monthEvents]) => (
+                            Object.entries(groupedUpcoming).map(([month, monthEvents]) => (
                                 <View key={month} style={{ marginBottom: 16 }}>
                                     <Text style={styles.monthLabel}>{month.toUpperCase()}</Text>
                                     {monthEvents.map((event) => {
@@ -136,7 +272,7 @@ export default function ParentEventsScreen() {
                                         const color = EVENT_COLORS[eventType] ?? EVENT_COLORS.other;
                                         return (
                                             <TouchableOpacity
-                                                key={event.id}
+                                                key={`up-${event.id}`}
                                                 style={[styles.eventCard, { borderLeftColor: color }]}
                                                 onPress={() => setSelectedEvent(event)}
                                                 activeOpacity={0.7}
@@ -239,7 +375,7 @@ export default function ParentEventsScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: 'transparent' },
     loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    loadingText: { color: '#FF6A00', fontSize: 13, marginTop: 15, letterSpacing: 2, fontWeight: '600' },
+    loadingText: { color: '#A855F7', fontSize: 13, marginTop: 15, letterSpacing: 2, fontWeight: '600' },
     header: { 
         paddingTop: Platform.OS === 'ios' ? 60 : 40, 
         paddingHorizontal: 15, 
@@ -256,16 +392,47 @@ const styles = StyleSheet.create({
     scrollContent: { paddingBottom: 100 },
     body: { padding: 16 },
     calendarContainer: {
-        height: Dimensions.get('window').height * 0.42,
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        backgroundColor: '#150E28',
         borderRadius: 20,
         overflow: 'hidden',
         marginBottom: 24,
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.08)',
+        paddingVertical: 8,
         elevation: 2,
     },
-    webview: { flex: 1, backgroundColor: 'transparent' },
+    sectionHeaderContainer: {
+        marginBottom: 12,
+        paddingHorizontal: 4,
+    },
+    sectionTitle: {
+        fontSize: 13,
+        fontWeight: '800',
+        color: '#C084FC',
+        letterSpacing: 2,
+    },
+    dateSubtitle: {
+        fontSize: 12,
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontWeight: '600',
+        marginTop: 2,
+    },
+    emptyDayCard: {
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: 16,
+        padding: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+        marginBottom: 16,
+        gap: 6,
+    },
+    emptyDayText: {
+        fontSize: 12,
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontWeight: '500',
+    },
     monthLabel: { fontSize: 13, fontWeight: '800', color: '#C084FC', marginTop: 12, marginBottom: 12, letterSpacing: 2 },
     eventCard: {
         backgroundColor: 'rgba(255, 255, 255, 0.02)', borderRadius: 16, flexDirection: 'row',
@@ -283,10 +450,10 @@ const styles = StyleSheet.create({
     typeText: { fontSize: 10, fontWeight: '700' },
     emptyCard: {
         backgroundColor: 'rgba(255, 255, 255, 0.01)', borderRadius: 20, padding: 48,
-        alignItems: 'center', gap: 10, marginTop: 40, borderStyle: 'dashed', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)',
+        alignItems: 'center', gap: 10, marginTop: 16, borderStyle: 'dashed', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)',
     },
-    emptyTitle: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
-    emptySub: { fontSize: 13, color: 'rgba(255, 255, 255, 0.4)', textAlign: 'center' },
+    emptyTitle: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+    emptySub: { fontSize: 12, color: 'rgba(255, 255, 255, 0.4)', textAlign: 'center' },
     
     // Modal Styles
     modalOverlay: {
@@ -366,3 +533,4 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
 });
+

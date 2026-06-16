@@ -1,6 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { CalendarDays, AlertCircle, Plus, Calendar as CalendarIcon, Clock } from 'lucide-react';
+import { 
+    CalendarDays, 
+    AlertCircle, 
+    Plus, 
+    Calendar as CalendarIcon, 
+    Clock, 
+    ChevronLeft, 
+    ChevronRight, 
+    X, 
+    Trash2, 
+    FileText 
+} from 'lucide-react';
 import { uploadFileToStorage } from '../utils/storage';
 import './CalendarPage.css';
 
@@ -13,36 +24,38 @@ interface DBEvent {
     images?: string[] | null;
 }
 
+const EVENT_TYPE_COLORS: Record<string, string> = {
+    holiday: 'badge-holiday',
+    exam: 'badge-exam',
+    sports: 'badge-sports',
+    cultural: 'badge-cultural',
+    meeting: 'badge-meeting',
+};
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 export function CalendarPage() {
-    const [calendarEmbedUrl, setCalendarEmbedUrl] = useState<string | null>(null);
+    const [currentDate, setCurrentDate] = useState(new Date());
     const [events, setEvents] = useState<DBEvent[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // New Event Form State
-    const [showForm, setShowForm] = useState(false);
-    const [newEvent, setNewEvent] = useState({ title: '', description: '', date: '', type: 'holiday' });
+    // Slide-out Drawer state
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [selectedEvent, setSelectedEvent] = useState<DBEvent | null>(null);
+
+    // Form inputs state
+    const [eventTitle, setEventTitle] = useState('');
+    const [eventDescription, setEventDescription] = useState('');
+    const [eventType, setEventType] = useState('holiday');
+    const [eventDateStr, setEventDateStr] = useState('');
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
 
-    useEffect(() => {
-        fetchCalendarSettings();
-        fetchEvents();
-    }, []);
-
-    const fetchEvents = async () => {
+    const fetchEvents = useCallback(async () => {
         try {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const todayStr = today.toISOString().split('T')[0];
-
-            // Auto-remove expired events from database
-            await supabase
-                .from('events')
-                .delete()
-                .lt('date', todayStr);
-
+            setLoading(true);
             const { data, error } = await supabase
                 .from('events')
                 .select('*')
@@ -50,10 +63,17 @@ export function CalendarPage() {
 
             if (error) throw error;
             setEvents(data || []);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error fetching events:', err);
+            setError(err.message || 'Failed to load events.');
+        } finally {
+            setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchEvents();
+    }, [fetchEvents]);
 
     const fileToBase64 = (file: File): Promise<string> => {
         return new Promise((resolve, reject) => {
@@ -64,146 +84,317 @@ export function CalendarPage() {
         });
     };
 
-    const handleAddEvent = async (e: React.FormEvent) => {
+    const formatDateString = (date: Date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
+    const handlePrevMonth = () => {
+        setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    };
+
+    const handleNextMonth = () => {
+        setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    };
+
+    const handleToday = () => {
+        setCurrentDate(new Date());
+    };
+
+    const handleOpenCreateDrawer = (date: Date) => {
+        setSelectedEvent(null);
+        setEventTitle('');
+        setEventDescription('');
+        setEventType('holiday');
+        setEventDateStr(formatDateString(date));
+        setImageFile(null);
+        setImagePreview(null);
+        setIsDrawerOpen(true);
+    };
+
+    const handleOpenEditDrawer = (event: DBEvent, e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent opening create dialog for the cell
+        setSelectedEvent(event);
+        setEventTitle(event.title);
+        setEventDescription(event.description || '');
+        setEventType(event.type);
+        setEventDateStr(event.date);
+        setImagePreview(event.images?.[0] || null);
+        setImageFile(null);
+        setIsDrawerOpen(true);
+    };
+
+    const handleSaveEvent = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!eventTitle.trim() || !eventDateStr) return;
+
         setSubmitting(true);
         try {
-            let uploadedImageUrl: string | null = null;
+            let uploadedImageUrl = imagePreview;
+
             if (imageFile) {
                 try {
                     uploadedImageUrl = await uploadFileToStorage('avatars', imageFile);
                 } catch (storageErr) {
-                    console.warn('Failed to upload image to Supabase Storage, using Base64 fallback:', storageErr);
+                    console.warn('Failed to upload image to Supabase Storage, fallback to Base64:', storageErr);
                     uploadedImageUrl = await fileToBase64(imageFile);
                 }
             }
 
-            const { error } = await supabase.from('events').insert([
-                {
-                    title: newEvent.title,
-                    description: newEvent.description,
-                    date: newEvent.date,
-                    type: newEvent.type,
-                    images: uploadedImageUrl ? [uploadedImageUrl] : null
-                }
-            ]);
-            if (error) throw error;
+            const eventData = {
+                title: eventTitle.trim(),
+                description: eventDescription.trim(),
+                date: eventDateStr,
+                type: eventType,
+                images: uploadedImageUrl ? [uploadedImageUrl] : null
+            };
 
-            alert('Event added successfully!');
-            setShowForm(false);
-            setNewEvent({ title: '', description: '', date: '', type: 'holiday' });
-            setImageFile(null);
-            setImagePreview(null);
+            if (selectedEvent) {
+                // Update
+                const { error } = await supabase
+                    .from('events')
+                    .update(eventData)
+                    .eq('id', selectedEvent.id);
+
+                if (error) throw error;
+                alert('Event updated successfully!');
+            } else {
+                // Create
+                const { error } = await supabase
+                    .from('events')
+                    .insert([eventData]);
+
+                if (error) throw error;
+                alert('Event created successfully!');
+            }
+
+            setIsDrawerOpen(false);
             fetchEvents();
         } catch (err: any) {
-            console.error('Error adding event:', err);
-            alert('Failed to add event: ' + err.message);
+            console.error('Error saving event:', err);
+            alert('Failed to save event: ' + err.message);
         } finally {
             setSubmitting(false);
         }
     };
 
-    const fetchCalendarSettings = async () => {
+    const handleDeleteEvent = async () => {
+        if (!selectedEvent) return;
+        if (!window.confirm(`Are you sure you want to delete "${selectedEvent.title}"?`)) return;
+
+        setSubmitting(true);
         try {
-            const { data, error } = await supabase
-                .from('school_settings')
-                .select('calendar_embed_url')
-                .limit(1)
-                .single();
+            const { error } = await supabase
+                .from('events')
+                .delete()
+                .eq('id', selectedEvent.id);
 
-            if (error && error.code !== 'PGRST116') {
-                throw error;
-            }
-
-            if (data?.calendar_embed_url) {
-                setCalendarEmbedUrl(data.calendar_embed_url);
-            }
+            if (error) throw error;
+            alert('Event deleted successfully!');
+            setIsDrawerOpen(false);
+            fetchEvents();
         } catch (err: any) {
-            console.error('Error fetching calendar settings:', err);
-            setError('Failed to load calendar settings.');
+            console.error('Error deleting event:', err);
+            alert('Failed to delete event: ' + err.message);
         } finally {
-            setLoading(false);
+            setSubmitting(false);
         }
     };
 
-    if (loading) {
-        return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-                <div style={{ width: '40px', height: '40px', border: '4px solid #f1f5f9', borderTopColor: '#0071e3', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-            </div>
-        );
+    // Calculate calendar grid days
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const firstDayOfMonth = new Date(year, month, 1);
+    const startDayOfWeek = firstDayOfMonth.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+    const cells: { date: Date; isCurrentMonth: boolean; key: string }[] = [];
+
+    // Prev month days
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+        const d = new Date(year, month - 1, daysInPrevMonth - i);
+        cells.push({ date: d, isCurrentMonth: false, key: `prev-${daysInPrevMonth - i}` });
     }
+
+    // Current month days
+    for (let i = 1; i <= daysInMonth; i++) {
+        const d = new Date(year, month, i);
+        cells.push({ date: d, isCurrentMonth: true, key: `curr-${i}` });
+    }
+
+    // Next month days
+    const remainingCells = 42 - cells.length;
+    for (let i = 1; i <= remainingCells; i++) {
+        const d = new Date(year, month + 1, i);
+        cells.push({ date: d, isCurrentMonth: false, key: `next-${i}` });
+    }
+
+    const currentMonthLabel = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    const todayStr = formatDateString(new Date());
 
     return (
         <div className="calendar-page-container">
+            {/* Header controls */}
             <div className="calendar-page-header">
                 <h1 className="calendar-page-title">
                     <CalendarDays className="text-primary" size={28} />
-                    Events & Calendar
+                    Events Calendar
                 </h1>
-                <button
-                    onClick={() => setShowForm(!showForm)}
-                    className="btn-add-event-gradient"
-                >
-                    <Plus size={20} />
-                    {showForm ? 'Cancel' : 'Add Event'}
-                </button>
+                <div className="calendar-controls">
+                    <button onClick={handleToday} className="btn-today">Today</button>
+                    <div className="nav-arrows">
+                        <button onClick={handlePrevMonth} className="btn-nav-arrow">
+                            <ChevronLeft size={18} />
+                        </button>
+                        <span className="month-indicator">{currentMonthLabel}</span>
+                        <button onClick={handleNextMonth} className="btn-nav-arrow">
+                            <ChevronRight size={18} />
+                        </button>
+                    </div>
+                    <button
+                        onClick={() => handleOpenCreateDrawer(new Date())}
+                        className="btn-add-event-gradient"
+                    >
+                        <Plus size={20} />
+                        Add Event
+                    </button>
+                </div>
             </div>
 
-            {showForm && (
-                <div className="event-form-card">
-                    <h2>Create New Event</h2>
-                    <form onSubmit={handleAddEvent}>
-                        <div className="event-form-grid">
-                            <div className="event-form-group event-form-group-full">
-                                <label className="event-form-label">Event Title</label>
+            {error && (
+                <div className="calendar-error-banner">
+                    <AlertCircle size={20} />
+                    <p>{error}</p>
+                </div>
+            )}
+
+            {/* Calendar Main Layout */}
+            <div className="calendar-grid-wrapper">
+                {/* Weekday headers */}
+                <div className="weekday-headers-row">
+                    {WEEKDAYS.map(day => (
+                        <div key={day} className="weekday-header-cell">{day}</div>
+                    ))}
+                </div>
+
+                {/* Grid cells */}
+                {loading ? (
+                    <div className="calendar-spinner-wrapper">
+                        <div className="spinner"></div>
+                        <p>Loading calendar...</p>
+                    </div>
+                ) : (
+                    <div className="calendar-grid-body">
+                        {cells.map(cell => {
+                            const dateStr = formatDateString(cell.date);
+                            const isToday = dateStr === todayStr;
+                            const dayEvents = events.filter(e => e.date === dateStr);
+
+                            return (
+                                <div
+                                    key={cell.key}
+                                    className={`calendar-day-cell ${cell.isCurrentMonth ? 'current-month' : 'adjacent-month'} ${isToday ? 'today-cell' : ''}`}
+                                    onClick={() => handleOpenCreateDrawer(cell.date)}
+                                >
+                                    <div className="day-number-row">
+                                        <span className={`day-number ${isToday ? 'today-badge' : ''}`}>
+                                            {cell.date.getDate()}
+                                        </span>
+                                    </div>
+                                    <div className="day-events-container">
+                                        {dayEvents.map(event => {
+                                            const badgeClass = EVENT_TYPE_COLORS[event.type] || 'badge-other';
+                                            return (
+                                                <div
+                                                    key={event.id}
+                                                    onClick={(e) => handleOpenEditDrawer(event, e)}
+                                                    className={`event-pill-item ${badgeClass}`}
+                                                    title={event.title}
+                                                >
+                                                    <span className="event-pill-dot"></span>
+                                                    <span className="event-pill-title">{event.title}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* Notion-style Slide-out Drawer Overlay */}
+            {isDrawerOpen && (
+                <div className="drawer-overlay" onClick={() => setIsDrawerOpen(false)}>
+                    <div className="drawer-container" onClick={e => e.stopPropagation()}>
+                        <div className="drawer-header">
+                            <h2 className="drawer-title">
+                                {selectedEvent ? 'Edit Event Details' : 'Create New Event'}
+                            </h2>
+                            <button onClick={() => setIsDrawerOpen(false)} className="drawer-close-btn">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveEvent} className="drawer-body">
+                            <div className="drawer-form-group">
+                                <label className="drawer-label">Event Title *</label>
                                 <input
                                     type="text"
                                     required
-                                    value={newEvent.title}
-                                    onChange={e => setNewEvent({ ...newEvent, title: e.target.value })}
-                                    className="event-form-control"
-                                    placeholder="E.g., Annual Sports Day"
+                                    value={eventTitle}
+                                    onChange={e => setEventTitle(e.target.value)}
+                                    placeholder="E.g., Annual Sports Day Meet"
+                                    className="drawer-input"
                                 />
                             </div>
-                            <div className="event-form-group event-form-group-full">
-                                <label className="event-form-label">Description (Optional)</label>
+
+                            <div className="drawer-form-group">
+                                <label className="drawer-label">Description</label>
                                 <textarea
-                                    value={newEvent.description}
-                                    onChange={e => setNewEvent({ ...newEvent, description: e.target.value })}
-                                    className="event-form-control"
-                                    placeholder="Provide event details here..."
-                                    rows={3}
+                                    value={eventDescription}
+                                    onChange={e => setEventDescription(e.target.value)}
+                                    placeholder="Add instructions, location, or details..."
+                                    rows={4}
+                                    className="drawer-input textarea"
                                 />
                             </div>
-                            <div className="event-form-group">
-                                <label className="event-form-label">Date</label>
-                                <input
-                                    type="date"
-                                    required
-                                    value={newEvent.date}
-                                    onChange={e => setNewEvent({ ...newEvent, date: e.target.value })}
-                                    className="event-form-control"
-                                />
+
+                            <div className="drawer-form-row">
+                                <div className="drawer-form-group half">
+                                    <label className="drawer-label">Date *</label>
+                                    <input
+                                        type="date"
+                                        required
+                                        value={eventDateStr}
+                                        onChange={e => setEventDateStr(e.target.value)}
+                                        className="drawer-input"
+                                    />
+                                </div>
+                                <div className="drawer-form-group half">
+                                    <label className="drawer-label">Event Type *</label>
+                                    <select
+                                        value={eventType}
+                                        onChange={e => setEventType(e.target.value)}
+                                        className="drawer-input select"
+                                    >
+                                        <option value="holiday">Holiday</option>
+                                        <option value="exam">Exam</option>
+                                        <option value="sports">Sports</option>
+                                        <option value="cultural">Cultural</option>
+                                        <option value="meeting">Meeting</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div className="event-form-group">
-                                <label className="event-form-label">Type</label>
-                                <select
-                                    value={newEvent.type}
-                                    onChange={e => setNewEvent({ ...newEvent, type: e.target.value })}
-                                    className="event-form-control"
-                                >
-                                    <option value="holiday">Holiday</option>
-                                    <option value="exam">Exam</option>
-                                    <option value="sports">Sports</option>
-                                    <option value="cultural">Cultural</option>
-                                    <option value="meeting">Meeting</option>
-                                </select>
-                            </div>
-                            <div className="event-form-group event-form-group-full">
-                                <label className="event-form-label">Event Image (Optional)</label>
-                                <div className="event-image-upload-wrapper">
-                                    <span className="upload-placeholder-text">Click or drag an image here to upload</span>
+
+                            <div className="drawer-form-group">
+                                <label className="drawer-label">Event Banner / Photo (Optional)</label>
+                                <div className="drawer-upload-box">
+                                    <p className="upload-box-text">Click or drop a banner image to upload</p>
                                     <input
                                         type="file"
                                         accept="image/*"
@@ -216,131 +407,57 @@ export function CalendarPage() {
                                                 setImagePreview(null);
                                             }
                                         }}
+                                        className="drawer-file-input"
                                     />
                                 </div>
                                 {imagePreview && (
-                                    <div className="image-preview-container">
-                                        <img
-                                            src={imagePreview}
-                                            alt="Preview"
-                                            className="image-preview-img"
-                                        />
+                                    <div className="drawer-preview-box">
+                                        <img src={imagePreview} alt="Event Preview" className="drawer-preview-img" />
                                         <button
                                             type="button"
                                             onClick={() => {
                                                 setImageFile(null);
                                                 setImagePreview(null);
                                             }}
-                                            className="btn-remove-preview"
+                                            className="drawer-btn-remove"
                                         >
-                                            &times;
+                                            <X size={14} />
                                         </button>
                                     </div>
                                 )}
                             </div>
-                        </div>
-                        <div className="event-form-actions">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setShowForm(false);
-                                    setImageFile(null);
-                                    setImagePreview(null);
-                                }}
-                                className="btn-cancel-event"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={submitting}
-                                className="btn-save-event"
-                            >
-                                {submitting ? 'Saving...' : 'Save Event'}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            )}
 
-            <div className="calendar-layout-grid">
-                <div>
-                    {error ? (
-                        <div style={{ padding: '16px', background: '#fee2e2', color: '#ef4444', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <AlertCircle size={20} />
-                            <p>{error}</p>
-                        </div>
-                    ) : calendarEmbedUrl ? (
-                        <div className="calendar-card" style={{ minHeight: '600px' }}>
-                            <iframe
-                                src={calendarEmbedUrl}
-                                style={{ border: 0, width: '100%', height: '100%', minHeight: '600px' }}
-                                frameBorder="0"
-                                scrolling="yes"
-                                title="School Calendar"
-                            ></iframe>
-                        </div>
-                    ) : (
-                        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '48px', textAlign: 'center', boxShadow: '0 4px 20px rgba(15,23,42,0.03)' }}>
-                            <div style={{ background: '#f8fafc', height: '80px', width: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', border: '1px solid #f1f5f9' }}>
-                                <CalendarDays size={32} style={{ color: '#94a3b8' }} />
+                            <div className="drawer-actions">
+                                {selectedEvent && (
+                                    <button
+                                        type="button"
+                                        onClick={handleDeleteEvent}
+                                        className="btn-drawer-delete"
+                                        disabled={submitting}
+                                    >
+                                        <Trash2 size={16} />
+                                        Delete
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setIsDrawerOpen(false)}
+                                    className="btn-drawer-cancel"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="btn-drawer-save"
+                                    disabled={submitting}
+                                >
+                                    {submitting ? 'Saving...' : 'Save Event'}
+                                </button>
                             </div>
-                            <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#0f172a', marginBottom: '8px' }}>No Calendar Configured</h2>
-                            <p style={{ color: '#64748b', maxWidth: '400px', margin: '0 auto' }}>
-                                The school calendar has not been set up yet. Please go to Settings &gt; School Settings to manage the academic calendar embed URL.
-                            </p>
-                        </div>
-                    )}
-                </div>
-
-                {/* School Events List side panel */}
-                <div className="events-list-card">
-                    <h2>
-                        <CalendarIcon className="text-primary" size={24} />
-                        Upcoming Events
-                    </h2>
-
-                    <div className="events-list-scroll">
-                        {events.length === 0 ? (
-                            <div className="event-empty-state">
-                                <CalendarIcon size={40} style={{ margin: '0 auto 12px', color: '#cbd5e1' }} />
-                                <p>No upcoming events found.</p>
-                            </div>
-                        ) : (
-                            <div>
-                                {events.map((event) => (
-                                    <div key={event.id} className="upcoming-event-item">
-                                        {event.images && event.images.length > 0 && (
-                                            <img
-                                                src={event.images[0]}
-                                                alt={event.title}
-                                                className="event-thumbnail-img"
-                                            />
-                                        )}
-                                        <div className="event-content-info">
-                                            <div className="event-content-header">
-                                                <h3 className="event-content-title" title={event.title}>{event.title}</h3>
-                                                <span className={`badge-event-type ${event.type}`}>
-                                                    {event.type}
-                                                </span>
-                                            </div>
-                                            {event.description && (
-                                                <p className="event-content-desc">
-                                                    {event.description}
-                                                </p>
-                                            )}
-                                            <div className="event-content-time">
-                                                <Clock size={12} />
-                                                <span>{new Date(event.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        </form>
                     </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }
