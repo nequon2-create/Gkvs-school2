@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import {
-    View, Text, StyleSheet, ScrollView, RefreshControl, StatusBar, ActivityIndicator, TouchableOpacity, Alert, Image, Platform, Dimensions, Linking
+    View, Text, StyleSheet, ScrollView, RefreshControl, StatusBar, ActivityIndicator, TouchableOpacity, Alert, Image, Platform, Dimensions, Linking, Modal
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useAuthStore } from '../../store/authStore';
 import { supabase } from '../../config/supabase';
 import { Student, SchoolClass } from '../../types';
 import { LineChart } from 'react-native-chart-kit';
+import AccountSwitcherModal from '../../components/AccountSwitcherModal';
 
 export default function ParentProfileScreen() {
     const { user, logout } = useAuthStore();
@@ -19,6 +22,85 @@ export default function ParentProfileScreen() {
     const [chartData, setChartData] = useState<any>(null);
     const [weeklyAttendance, setWeeklyAttendance] = useState<any[]>([]);
     const [isUpTrend, setIsUpTrend] = useState(true);
+    const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+    const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
+
+    // Zoom Gesture States
+    const scale = useSharedValue(1);
+    const savedScale = useSharedValue(1);
+    const translationX = useSharedValue(0);
+    const translationY = useSharedValue(0);
+    const savedTranslationX = useSharedValue(0);
+    const savedTranslationY = useSharedValue(0);
+    const windowWidth = Dimensions.get('window').width;
+    const windowHeight = Dimensions.get('window').height * 0.7;
+
+    const clamp = (val: number, min: number, max: number) => {
+        'worklet';
+        return Math.min(Math.max(val, min), max);
+    };
+
+    const pinchGesture = Gesture.Pinch()
+        .onUpdate((e) => {
+            scale.value = Math.max(1, Math.min(5, savedScale.value * e.scale));
+        })
+        .onEnd(() => {
+            savedScale.value = scale.value;
+        });
+
+    const panGesture = Gesture.Pan()
+        .onUpdate((e) => {
+            if (scale.value > 1) {
+                const maxTx = (windowWidth * (scale.value - 1)) / 2;
+                const maxTy = (windowHeight * (scale.value - 1)) / 2;
+                translationX.value = clamp(savedTranslationX.value + e.translationX, -maxTx, maxTx);
+                translationY.value = clamp(savedTranslationY.value + e.translationY, -maxTy, maxTy);
+            }
+        })
+        .onEnd(() => {
+            savedTranslationX.value = translationX.value;
+            savedTranslationY.value = translationY.value;
+        });
+
+    const doubleTapGesture = Gesture.Tap()
+        .numberOfTaps(2)
+        .onStart(() => {
+            if (scale.value > 1) {
+                scale.value = withTiming(1);
+                translationX.value = withTiming(0);
+                translationY.value = withTiming(0);
+                savedScale.value = 1;
+                savedTranslationX.value = 0;
+                savedTranslationY.value = 0;
+            } else {
+                scale.value = withTiming(2.5);
+                savedScale.value = 2.5;
+            }
+        });
+
+    const composedGesture = Gesture.Exclusive(
+        doubleTapGesture,
+        Gesture.Simultaneous(pinchGesture, panGesture)
+    );
+
+    const animatedImageStyle = useAnimatedStyle(() => {
+        return {
+            transform: [
+                { scale: scale.value },
+                { translateX: translationX.value },
+                { translateY: translationY.value }
+            ]
+        };
+    });
+
+    const resetZoom = () => {
+        scale.value = withTiming(1);
+        translationX.value = withTiming(0);
+        translationY.value = withTiming(0);
+        savedScale.value = 1;
+        savedTranslationX.value = 0;
+        savedTranslationY.value = 0;
+    };
 
     const fetchData = async () => {
         if (!user?.id) { setLoading(false); return; }
@@ -147,7 +229,7 @@ export default function ParentProfileScreen() {
         }
     };
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => { fetchData(); }, [user?.id]);
     const onRefresh = () => { setRefreshing(true); fetchData(); };
 
     const handleLogout = () => {
@@ -180,9 +262,9 @@ export default function ParentProfileScreen() {
             <StatusBar barStyle="light-content" backgroundColor="#090514" />
             
             <View style={styles.navHeader}>
-                <View style={styles.navCircleBtn}>
-                    <Ionicons name="person" size={18} color="#FFFFFF" />
-                </View>
+                <TouchableOpacity style={styles.navCircleBtn} onPress={() => setShowAccountSwitcher(true)}>
+                    <Ionicons name="swap-horizontal" size={18} color="#A855F7" />
+                </TouchableOpacity>
                 <Text style={styles.navTitle}>Student Profile</Text>
                 <TouchableOpacity style={styles.navCircleBtn} onPress={handleLogout}>
                     <Ionicons name="log-out-outline" size={18} color="#EF4444" />
@@ -196,15 +278,23 @@ export default function ParentProfileScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 <View style={styles.profileHeader}>
-                    <LinearGradient colors={['#A855F7', '#EC4899']} style={styles.avatarBorder}>
-                        <View style={styles.avatarInner}>
-                            {student?.photo_url || user?.photo_url ? (
-                                <Image source={{ uri: student?.photo_url ?? user?.photo_url }} style={styles.avatarImage} />
-                            ) : (
-                                <Text style={styles.avatarText}>{user?.full_name?.charAt(0).toUpperCase()}</Text>
-                            )}
-                        </View>
-                    </LinearGradient>
+                    <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => {
+                            const photo = student?.photo_url || user?.photo_url;
+                            if (photo) setFullScreenImage(photo);
+                        }}
+                    >
+                        <LinearGradient colors={['#A855F7', '#EC4899']} style={styles.avatarBorder}>
+                            <View style={styles.avatarInner}>
+                                {student?.photo_url || user?.photo_url ? (
+                                    <Image source={{ uri: student?.photo_url ?? user?.photo_url }} style={styles.avatarImage} />
+                                ) : (
+                                    <Text style={styles.avatarText}>{user?.full_name?.charAt(0).toUpperCase()}</Text>
+                                )}
+                            </View>
+                        </LinearGradient>
+                    </TouchableOpacity>
                     <Text style={styles.name}>{user?.full_name}</Text>
                     <Text style={styles.subtext}>Registration: {student?.registration_number ?? 'N/A'}</Text>
                 </View>
@@ -375,6 +465,55 @@ export default function ParentProfileScreen() {
                     </TouchableOpacity>
                 </View>
             </ScrollView>
+
+            {/* Full Screen Student Photo Modal with Pure Finger Pinch & Double-Tap Zoom */}
+            <Modal
+                visible={fullScreenImage !== null}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => {
+                    setFullScreenImage(null);
+                    resetZoom();
+                }}
+            >
+                <GestureHandlerRootView style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.95)' }}>
+                    <View style={styles.fullScreenImageContainer}>
+                        <TouchableOpacity
+                            style={styles.fullScreenCloseBtn}
+                            onPress={() => {
+                                setFullScreenImage(null);
+                                resetZoom();
+                            }}
+                        >
+                            <Ionicons name="close" size={28} color="#FFF" />
+                        </TouchableOpacity>
+
+                        {fullScreenImage && (
+                            <View style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+                                <GestureDetector gesture={composedGesture}>
+                                    <Animated.Image
+                                        source={{ uri: fullScreenImage }}
+                                        style={[
+                                            {
+                                                width: windowWidth,
+                                                height: Dimensions.get('window').height,
+                                            },
+                                            animatedImageStyle
+                                        ]}
+                                        resizeMode="contain"
+                                    />
+                                </GestureDetector>
+                            </View>
+                        )}
+                    </View>
+                </GestureHandlerRootView>
+            </Modal>
+
+            {/* Instagram-Style Multi-Account Switcher Modal */}
+            <AccountSwitcherModal
+                visible={showAccountSwitcher}
+                onClose={() => setShowAccountSwitcher(false)}
+            />
         </LinearGradient>
     );
 }
@@ -556,4 +695,37 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '700',
     },
+    fullScreenImageContainer: {
+        flex: 1,
+        backgroundColor: '#090514',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalHeaderBar: {
+        width: '100%',
+        height: 60,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        marginTop: Platform.OS === 'ios' ? 50 : 20,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    modalHeaderTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+    headerBtn: { padding: 8 },
+    zoomControlBar: {
+        width: '100%',
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        paddingVertical: 16,
+        backgroundColor: 'rgba(21, 14, 40, 0.95)',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.05)',
+        paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+    },
+    zoomBtn: { alignItems: 'center', minWidth: 70 },
+    zoomBtnReset: { opacity: 0.8 },
+    zoomBtnText: { color: '#FFF', fontSize: 11, fontWeight: '600', marginTop: 4 },
 });

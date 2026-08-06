@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PhotoUpload } from '../../common/PhotoUpload';
 import type { StudentFormData, Gender } from '../../../types/profile.types';
 import type { AcademicYear } from '../../../types/academic-years.types';
@@ -40,6 +40,9 @@ export function StudentProfileForm({
     initialData,
     isEditing = false,
 }: StudentProfileFormProps) {
+    const nameInputRef = useRef<HTMLInputElement>(null);
+    const [showPassword, setShowPassword] = useState(false);
+
     const [formData, setFormData] = useState<StudentFormData>({
         full_name: initialData?.full_name || '',
         gender: initialData?.gender || 'male',
@@ -54,7 +57,7 @@ export function StudentProfileForm({
         login_id: initialData?.login_id || '',
         password: '', // Password not pre-filled for security
         aadhar_number: initialData?.aadhar_number || '',
-        is_first_admission: initialData?.is_first_admission ?? false,
+        is_first_admission: initialData?.is_first_admission ?? true, // Default to TRUE (New admission)
         past_school_name: initialData?.past_school_name || '',
         past_class: initialData?.past_class || '',
     });
@@ -62,9 +65,33 @@ export function StudentProfileForm({
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [touched, setTouched] = useState<Record<string, boolean>>({});
 
-    // We no longer filter classes by academic year, as requested by the user.
-    // All classes should be available regardless of the selected academic year.
+    // Auto-select active academic year if not selected yet
+    useEffect(() => {
+        if (!formData.academic_year_id && academicYears.length > 0) {
+            const activeYear = academicYears.find((y) => y.is_current) || academicYears[0];
+            if (activeYear) {
+                setFormData((prev) => ({ ...prev, academic_year_id: activeYear.id }));
+            }
+        }
+    }, [academicYears, formData.academic_year_id]);
+
+    // Auto-focus full name input on mount
+    useEffect(() => {
+        if (!isEditing && nameInputRef.current) {
+            nameInputRef.current.focus();
+        }
+    }, [isEditing]);
+
     const filteredClasses = classes;
+
+    const generateRandomLoginId = () => {
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        const namePart = formData.full_name
+            ? formData.full_name.trim().split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '')
+            : 'stu';
+        const generated = `${namePart}${randomNum}`;
+        setFormData((prev) => ({ ...prev, login_id: generated }));
+    };
 
     const validate = (): boolean => {
         const newErrors: Record<string, string> = {};
@@ -75,13 +102,12 @@ export function StudentProfileForm({
         const ageError = validateAge(formData.date_of_birth, 3, 25);
         if (ageError) newErrors.date_of_birth = ageError;
 
-        const parentNameError = validateRequired(formData.parent_name, 'Parent name');
-        if (parentNameError) newErrors.parent_name = parentNameError;
-
-        if (!validatePhone(formData.parent_phone)) {
+        // Parent Phone format check ONLY if provided
+        if (formData.parent_phone && !validatePhone(formData.parent_phone)) {
             newErrors.parent_phone = 'Please enter a valid 10-digit phone number';
         }
 
+        // Parent Email format check ONLY if provided
         if (formData.parent_email && !validateEmail(formData.parent_email)) {
             newErrors.parent_email = 'Please enter a valid email address';
         }
@@ -96,24 +122,13 @@ export function StudentProfileForm({
             newErrors.photo_url = 'Please enter a valid URL';
         }
 
-        const loginIdError = validateRequired(formData.login_id, 'Login ID');
-        if (loginIdError) newErrors.login_id = loginIdError;
-
-        const aadharError = validateRequired(formData.aadhar_number, 'Aadhar Number');
-        if (aadharError) newErrors.aadhar_number = aadharError;
-
-        // Conditional validation for Past School Info
+        // Conditional validation for Past School Info (only if transferred, i.e., is_first_admission is false)
         if (!formData.is_first_admission) {
             const pastSchoolError = validateRequired(formData.past_school_name || '', 'Past School Name');
             if (pastSchoolError) newErrors.past_school_name = pastSchoolError;
 
             const pastClassError = validateRequired(formData.past_class || '', 'Past Class');
             if (pastClassError) newErrors.past_class = pastClassError;
-        }
-
-        if (!isEditing) {
-            const passwordError = validateRequired(formData.password, 'Password');
-            if (passwordError) newErrors.password = passwordError;
         }
 
         setErrors(newErrors);
@@ -129,7 +144,57 @@ export function StudentProfileForm({
 
         if (!validate()) return;
 
-        await onSubmit(formData);
+        // Auto-generate login_id if left empty
+        let finalLoginId = formData.login_id.trim();
+        if (!finalLoginId) {
+            const randomNum = Math.floor(1000 + Math.random() * 9000);
+            const namePart = formData.full_name
+                ? formData.full_name.trim().split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '')
+                : 'stu';
+            finalLoginId = `${namePart}${randomNum}`;
+        }
+
+        // Default password to 123456 if left empty (for new profiles)
+        let finalPassword = formData.password.trim();
+        if (!isEditing && !finalPassword) {
+            finalPassword = '123456';
+        }
+
+        const dataToSubmit: StudentFormData = {
+            ...formData,
+            login_id: finalLoginId,
+            password: finalPassword,
+            parent_name: formData.parent_name || 'N/A',
+        };
+
+        await onSubmit(dataToSubmit);
+    };
+
+    const resetForm = () => {
+        const activeYear = academicYears.find((y) => y.is_current) || academicYears[0];
+        setFormData({
+            full_name: '',
+            gender: 'male',
+            date_of_birth: '',
+            parent_name: '',
+            parent_phone: '',
+            parent_email: '',
+            academic_year_id: activeYear ? activeYear.id : '',
+            class_id: '',
+            photo_url: '',
+            address: '',
+            login_id: '',
+            password: '',
+            aadhar_number: '',
+            is_first_admission: true,
+            past_school_name: '',
+            past_class: '',
+        });
+        setErrors({});
+        setTouched({});
+        if (nameInputRef.current) {
+            nameInputRef.current.focus();
+        }
     };
 
     const handleBlur = (field: string) => {
@@ -137,7 +202,7 @@ export function StudentProfileForm({
         validate();
     };
 
-    const handleChange = (field: keyof StudentFormData, value: string) => {
+    const handleChange = (field: keyof StudentFormData, value: any) => {
         setFormData((prev) => ({ ...prev, [field]: value }));
         if (touched[field]) {
             validate();
@@ -162,6 +227,7 @@ export function StudentProfileForm({
                         Full Name <span className="required">*</span>
                     </label>
                     <input
+                        ref={nameInputRef}
                         id="full_name"
                         type="text"
                         className={`form-input ${touched.full_name && errors.full_name ? 'error' : ''}`}
@@ -224,27 +290,23 @@ export function StudentProfileForm({
 
                 <div className="form-group">
                     <label htmlFor="parent_name" className="form-label">
-                        Parent Name <span className="required">*</span>
+                        Parent Name <span className="optional">(Optional)</span>
                     </label>
                     <input
                         id="parent_name"
                         type="text"
-                        className={`form-input ${touched.parent_name && errors.parent_name ? 'error' : ''}`}
+                        className="form-input"
                         value={formData.parent_name}
                         onChange={(e) => handleChange('parent_name', e.target.value)}
-                        onBlur={() => handleBlur('parent_name')}
                         disabled={loading}
                         placeholder="Enter parent's full name"
                     />
-                    {touched.parent_name && errors.parent_name && (
-                        <span className="error-message">{errors.parent_name}</span>
-                    )}
                 </div>
 
                 <div className="form-row">
                     <div className="form-group">
                         <label htmlFor="parent_phone" className="form-label">
-                            Parent Phone <span className="required">*</span>
+                            Parent Phone <span className="optional">(Optional)</span>
                         </label>
                         <input
                             id="parent_phone"
@@ -263,7 +325,7 @@ export function StudentProfileForm({
 
                     <div className="form-group">
                         <label htmlFor="parent_email" className="form-label">
-                            Parent Email
+                            Parent Email <span className="optional">(Optional)</span>
                         </label>
                         <input
                             id="parent_email"
@@ -288,39 +350,33 @@ export function StudentProfileForm({
 
                 <div className="form-group">
                     <label htmlFor="aadhar_number" className="form-label">
-                        Aadhar Number <span className="required">*</span>
+                        Aadhar Number <span className="optional">(Optional)</span>
                     </label>
                     <input
                         id="aadhar_number"
                         type="text"
-                        className={`form-input ${touched.aadhar_number && errors.aadhar_number ? 'error' : ''}`}
+                        className="form-input"
                         value={formData.aadhar_number}
                         onChange={(e) => handleChange('aadhar_number', e.target.value)}
-                        onBlur={() => handleBlur('aadhar_number')}
                         disabled={loading}
                         placeholder="Enter 12-digit Aadhar Number"
                     />
-                    {touched.aadhar_number && errors.aadhar_number && (
-                        <span className="error-message">{errors.aadhar_number}</span>
-                    )}
                 </div>
 
                 <div className="form-group checkbox-group" style={{ marginTop: '16px', marginBottom: '24px' }}>
                     <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                         <input
                             type="checkbox"
-                            checked={formData.is_first_admission}
+                            checked={!formData.is_first_admission} // Checked means IT IS TRANSFERRED
                             onChange={(e) => {
-                                const isFirst = e.target.checked;
+                                const isTransferred = e.target.checked;
                                 setFormData((prev) => ({
                                     ...prev,
-                                    is_first_admission: isFirst,
-                                    // Clear past fields when checked
-                                    past_school_name: isFirst ? '' : prev.past_school_name,
-                                    past_class: isFirst ? '' : prev.past_class,
+                                    is_first_admission: !isTransferred,
+                                    past_school_name: isTransferred ? prev.past_school_name : '',
+                                    past_class: isTransferred ? prev.past_class : '',
                                 }));
-                                // Reset errors for past fields if it's first admission
-                                if (isFirst) {
+                                if (!isTransferred) {
                                     setErrors((prev) => {
                                         const newErrors = { ...prev };
                                         delete newErrors.past_school_name;
@@ -332,7 +388,9 @@ export function StudentProfileForm({
                             disabled={loading}
                             style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                         />
-                        <span style={{ fontSize: '15px', color: '#1D1D1F', fontWeight: '500' }}>This is the student's first school admission</span>
+                        <span style={{ fontSize: '15px', color: '#1D1D1F', fontWeight: '500' }}>
+                            Transferred from another school?
+                        </span>
                     </label>
                 </div>
 
@@ -404,7 +462,7 @@ export function StudentProfileForm({
                             <option value="">Select academic year</option>
                             {academicYears.map((year) => (
                                 <option key={year.id} value={year.id}>
-                                    {year.year_name} {year.is_current ? '(Current)' : ''}
+                                    {year.year_name} {year.is_current ? '(Current Active)' : ''}
                                 </option>
                             ))}
                         </select>
@@ -447,73 +505,80 @@ export function StudentProfileForm({
                 <h3 className="section-title">Account Credentials</h3>
                 <div className="form-row">
                     <div className="form-group">
-                        <label htmlFor="login_id" className="form-label">
-                            Login ID <span className="required">*</span>
+                        <label htmlFor="login_id" className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Login ID <span className="optional">(Auto-generated if empty)</span></span>
+                            <button
+                                type="button"
+                                onClick={generateRandomLoginId}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#0071E3',
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    padding: 0
+                                }}
+                            >
+                                ⚡ Generate ID
+                            </button>
                         </label>
                         <input
                             id="login_id"
                             type="text"
-                            className={`form-input ${touched.login_id && errors.login_id ? 'error' : ''}`}
+                            className="form-input"
                             value={formData.login_id}
                             onChange={(e) => handleChange('login_id', e.target.value)}
-                            onBlur={() => handleBlur('login_id')}
                             disabled={loading}
-                            placeholder="Create a unique login ID"
+                            placeholder="Auto-generated e.g. rahul4819"
                             autoComplete="new-username"
                         />
-                        {touched.login_id && errors.login_id && (
-                            <span className="error-message">{errors.login_id}</span>
-                        )}
-                        <span className="form-hint">This ID will be used for logging in</span>
+                        <span className="form-hint">Used for student login</span>
                     </div>
 
                     <div className="form-group">
                         <label htmlFor="password" className="form-label">
-                            Password {isEditing ? <span className="optional">(Leave blank to keep current)</span> : <span className="required">*</span>}
+                            Password {!isEditing && <span className="optional">(Default: 123456)</span>}
                         </label>
-                        <input
-                            id="password"
-                            type="password"
-                            className={`form-input ${touched.password && errors.password ? 'error' : ''}`}
-                            value={formData.password}
-                            onChange={(e) => handleChange('password', e.target.value)}
-                            onBlur={() => handleBlur('password')}
-                            disabled={loading}
-                            placeholder="Create a strong password"
-                            autoComplete="new-password"
-                        />
-                        {touched.password && errors.password && (
-                            <span className="error-message">{errors.password}</span>
-                        )}
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <input
+                                id="password"
+                                type={showPassword ? 'text' : 'password'}
+                                className="form-input"
+                                value={formData.password}
+                                onChange={(e) => handleChange('password', e.target.value)}
+                                disabled={loading}
+                                placeholder={isEditing ? 'Leave blank to keep current' : 'Default: 123456'}
+                                autoComplete="new-password"
+                                style={{ paddingRight: '40px' }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '10px',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    fontSize: '16px',
+                                    color: '#6e6e73'
+                                }}
+                                title={showPassword ? 'Hide Password' : 'Show Password'}
+                            >
+                                {showPassword ? '👁️' : '👁️‍🗨️'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </section>
 
-            {/* Additional Information */}
+            {/* Residential Address */}
             <section className="form-section">
-                <h3 className="section-title">Additional Information</h3>
-
-                <div className="form-group">
-                    <PhotoUpload
-                        currentPhoto={formData.photo_url}
-                        onPhotoChange={(url) => {
-                            setFormData(prev => ({ ...prev, photo_url: url }));
-                            // Clear validation error if any
-                            if (errors.photo_url) {
-                                setErrors(prev => {
-                                    const newErrors = { ...prev };
-                                    delete newErrors.photo_url;
-                                    return newErrors;
-                                });
-                            }
-                        }}
-                        bucketName="profiles"
-                    />
-                </div>
-
+                <h3 className="section-title">Residential Address</h3>
                 <div className="form-group">
                     <label htmlFor="address" className="form-label">
-                        Address
+                        Address <span className="optional">(Optional)</span>
                     </label>
                     <textarea
                         id="address"
@@ -532,27 +597,10 @@ export function StudentProfileForm({
                 <button
                     type="button"
                     className="btn btn-secondary"
-                    onClick={() => setFormData({
-                        full_name: '',
-                        gender: 'male',
-                        date_of_birth: '',
-                        parent_name: '',
-                        parent_phone: '',
-                        parent_email: '',
-                        academic_year_id: '',
-                        class_id: '',
-                        photo_url: '',
-                        address: '',
-                        login_id: '',
-                        password: '',
-                        aadhar_number: '',
-                        is_first_admission: false,
-                        past_school_name: '',
-                        past_class: '',
-                    })}
+                    onClick={resetForm}
                     disabled={loading}
                 >
-                    Reset
+                    Reset Form
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>
                     {loading ? (isEditing ? 'Saving...' : 'Creating...') : (isEditing ? 'Save Changes' : 'Create Student')}
@@ -561,3 +609,4 @@ export function StudentProfileForm({
         </form>
     );
 }
+

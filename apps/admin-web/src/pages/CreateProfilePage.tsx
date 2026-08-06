@@ -23,6 +23,7 @@ export function CreateProfilePage() {
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
+    const [formKey, setFormKey] = useState(0);
 
     const handleStudentSubmit = async (data: StudentFormData) => {
         setSubmitting(true);
@@ -33,13 +34,14 @@ export function CreateProfilePage() {
 
             if (result.success) {
                 setSuccess(true);
-                setSuccessMessage(`✅ Student "${data.full_name}" created successfully!`);
+                setSuccessMessage(`✅ Student "${data.full_name}" created successfully! Login ID: ${data.login_id}`);
+                setFormKey((prev) => prev + 1); // Triggers clean form reset & autofocus
 
-                // Auto-hide success message after 5 seconds
+                // Auto-hide success message after 3 seconds
                 setTimeout(() => {
                     setSuccess(false);
                     setSuccessMessage('');
-                }, 5000);
+                }, 3000);
             } else {
                 alert(result.error || 'Failed to create student profile');
             }
@@ -58,12 +60,13 @@ export function CreateProfilePage() {
             if (result.success) {
                 setSuccess(true);
                 setSuccessMessage(`✅ Teacher "${data.full_name}" created successfully!`);
+                setFormKey((prev) => prev + 1);
 
-                // Auto-hide success message after 5 seconds
+                // Auto-hide success message after 3 seconds
                 setTimeout(() => {
                     setSuccess(false);
                     setSuccessMessage('');
-                }, 5000);
+                }, 3000);
             } else {
                 alert(result.error || 'Failed to create teacher profile');
             }
@@ -112,6 +115,7 @@ export function CreateProfilePage() {
             <div className="form-container">
                 {activeType === 'student' ? (
                     <StudentProfileForm
+                        key={formKey}
                         onSubmit={handleStudentSubmit}
                         academicYears={academicYears}
                         classes={classes}
@@ -121,6 +125,7 @@ export function CreateProfilePage() {
                     />
                 ) : (
                     <TeacherProfileForm
+                        key={formKey}
                         onSubmit={handleTeacherSubmit}
                         loading={submitting}
                     />

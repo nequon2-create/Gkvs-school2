@@ -344,16 +344,21 @@ export function StudentProfilePage() {
                 <button
                     onClick={() => navigate(`/students/${id}/edit`)}
                     style={{
-                        width: '44px',
-                        height: '44px',
-                        background: '#fff',
+                        padding: '10px 18px',
+                        background: '#ffffff',
                         border: 'none',
                         borderRadius: '12px',
-                        fontSize: '20px',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: '#1D1D1F',
                         cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
                     }}
                 >
-                    ⚙️
+                    <span>✏️ Edit Profile</span>
                 </button>
             </div>
             {/* Profile Photo & Name */}

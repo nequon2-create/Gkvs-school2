@@ -185,7 +185,7 @@ export default function ParentHomeworkScreen({ navigation }: any) {
 
     useEffect(() => {
         fetchHomework();
-    }, [user]);
+    }, [user?.id, user?.class_id]);
 
     const onRefresh = () => {
         setRefreshing(true);

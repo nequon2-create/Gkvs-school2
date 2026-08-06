@@ -5,11 +5,14 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import * as Clipboard from 'expo-clipboard';
 import { useAuthStore } from '../../store/authStore';
 import { supabase } from '../../config/supabase';
 import { Event, StudentFee } from '../../types';
 import MarksCard from '../../components/MarksCard';
+import AccountSwitcherModal from '../../components/AccountSwitcherModal';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 
@@ -29,6 +32,7 @@ export default function ParentHomeScreen() {
     const [academicStatusPercent, setAcademicStatusPercent] = useState<number>(100);
     const [studentPhoto, setStudentPhoto] = useState<string | null>(null);
     const [myRatings, setMyRatings] = useState<Record<string, number>>({});
+    const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
     
     // Y offsets for scrolling
     const [homeworkY, setHomeworkY] = useState(0);
@@ -43,6 +47,83 @@ export default function ParentHomeScreen() {
     const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
     const [showMarksCard, setShowMarksCard] = useState(false);
     const [showFeeModal, setShowFeeModal] = useState(false);
+
+    // Zoom Gesture States
+    const scale = useSharedValue(1);
+    const savedScale = useSharedValue(1);
+    const translationX = useSharedValue(0);
+    const translationY = useSharedValue(0);
+    const savedTranslationX = useSharedValue(0);
+    const savedTranslationY = useSharedValue(0);
+    const windowWidth = Dimensions.get('window').width;
+    const windowHeight = Dimensions.get('window').height * 0.7;
+
+    const clamp = (val: number, min: number, max: number) => {
+        'worklet';
+        return Math.min(Math.max(val, min), max);
+    };
+
+    const pinchGesture = Gesture.Pinch()
+        .onUpdate((e) => {
+            scale.value = Math.max(1, Math.min(5, savedScale.value * e.scale));
+        })
+        .onEnd(() => {
+            savedScale.value = scale.value;
+        });
+
+    const panGesture = Gesture.Pan()
+        .onUpdate((e) => {
+            if (scale.value > 1) {
+                const maxTx = (windowWidth * (scale.value - 1)) / 2;
+                const maxTy = (windowHeight * (scale.value - 1)) / 2;
+                translationX.value = clamp(savedTranslationX.value + e.translationX, -maxTx, maxTx);
+                translationY.value = clamp(savedTranslationY.value + e.translationY, -maxTy, maxTy);
+            }
+        })
+        .onEnd(() => {
+            savedTranslationX.value = translationX.value;
+            savedTranslationY.value = translationY.value;
+        });
+
+    const doubleTapGesture = Gesture.Tap()
+        .numberOfTaps(2)
+        .onStart(() => {
+            if (scale.value > 1) {
+                scale.value = withTiming(1);
+                translationX.value = withTiming(0);
+                translationY.value = withTiming(0);
+                savedScale.value = 1;
+                savedTranslationX.value = 0;
+                savedTranslationY.value = 0;
+            } else {
+                scale.value = withTiming(2.5);
+                savedScale.value = 2.5;
+            }
+        });
+
+    const composedGesture = Gesture.Exclusive(
+        doubleTapGesture,
+        Gesture.Simultaneous(pinchGesture, panGesture)
+    );
+
+    const animatedImageStyle = useAnimatedStyle(() => {
+        return {
+            transform: [
+                { scale: scale.value },
+                { translateX: translationX.value },
+                { translateY: translationY.value }
+            ]
+        };
+    });
+
+    const resetZoom = () => {
+        scale.value = withTiming(1);
+        translationX.value = withTiming(0);
+        translationY.value = withTiming(0);
+        savedScale.value = 1;
+        savedTranslationX.value = 0;
+        savedTranslationY.value = 0;
+    };
 
     // Fee Reminder Popup States
     const [activeFeeAlert, setActiveFeeAlert] = useState<{
@@ -64,9 +145,8 @@ export default function ParentHomeScreen() {
                     .eq('id', user.id)
                     .maybeSingle();
                 
-                if (studentData?.photo_url) {
-                    setStudentPhoto(studentData.photo_url);
-                }
+                const activePhoto = studentData?.photo_url || user?.photo_url || null;
+                setStudentPhoto(activePhoto);
 
                 // Fetch attendance metrics
                 const { count: presentCount } = await supabase
@@ -234,7 +314,7 @@ export default function ParentHomeScreen() {
         }
     };
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => { fetchData(); }, [user?.id]);
 
     // Countdown Timer logic for Fee Popup
     useEffect(() => {
@@ -342,23 +422,45 @@ export default function ParentHomeScreen() {
             >
                 {/* Header */}
                 <View style={styles.header}>
-                    <View style={styles.headerLeft}>
-                        <LinearGradient colors={['#A855F7', '#EC4899']} style={styles.avatarBorder}>
-                            <View style={styles.avatarInner}>
-                                {studentPhoto ? (
-                                    <Image source={{ uri: studentPhoto }} style={styles.avatarImage} />
-                                ) : (
-                                    <Text style={styles.avatarText}>
-                                        {user?.full_name?.charAt(0).toUpperCase() ?? 'S'}
-                                    </Text>
-                                )}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() => {
+                                if (studentPhoto || user?.photo_url) {
+                                    setFullScreenImage(studentPhoto || user?.photo_url || null);
+                                } else {
+                                    setShowAccountSwitcher(true);
+                                }
+                            }}
+                            onLongPress={() => setShowAccountSwitcher(true)}
+                        >
+                            <LinearGradient colors={['#A855F7', '#EC4899']} style={styles.avatarBorder}>
+                                <View style={styles.avatarInner}>
+                                    {studentPhoto || user?.photo_url ? (
+                                        <Image source={{ uri: studentPhoto || user?.photo_url }} style={styles.avatarImage} />
+                                    ) : (
+                                        <Text style={styles.avatarText}>
+                                            {user?.full_name?.charAt(0).toUpperCase() ?? 'S'}
+                                        </Text>
+                                    )}
+                                </View>
+                            </LinearGradient>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.welcomeTextContainer}
+                            activeOpacity={0.8}
+                            onPress={() => setShowAccountSwitcher(true)}
+                            onLongPress={() => setShowAccountSwitcher(true)}
+                        >
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <Text style={styles.greeting}>Welcome Back</Text>
+                                <Ionicons name="chevron-down-circle" size={14} color="#A855F7" style={{ marginLeft: 4 }} />
                             </View>
-                        </LinearGradient>
-                        <View style={styles.welcomeTextContainer}>
-                            <Text style={styles.greeting}>Welcome Back</Text>
                             <Text style={styles.userName} numberOfLines={1}>{user?.full_name}</Text>
-                        </View>
+                        </TouchableOpacity>
                     </View>
+
                     <TouchableOpacity style={styles.bellButton} activeOpacity={0.8} onPress={() => alert('No new notifications')}>
                         <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
                         {pendingAmount > 0 && <View style={styles.bellBadge} />}
@@ -724,28 +826,47 @@ export default function ParentHomeScreen() {
                 />
             )}
 
-            {/* Full Screen Image Modal */}
+            {/* Full Screen Image Modal with Pure Finger Pinch & Double-Tap Zoom */}
             <Modal
                 visible={fullScreenImage !== null}
                 transparent={true}
                 animationType="fade"
-                onRequestClose={() => setFullScreenImage(null)}
+                onRequestClose={() => {
+                    setFullScreenImage(null);
+                    resetZoom();
+                }}
             >
-                <View style={styles.fullScreenImageContainer}>
-                    <TouchableOpacity
-                        style={styles.fullScreenCloseBtn}
-                        onPress={() => setFullScreenImage(null)}
-                    >
-                        <Ionicons name="close" size={28} color="#FFF" />
-                    </TouchableOpacity>
-                    {fullScreenImage && (
-                        <Image
-                            source={{ uri: fullScreenImage }}
-                            style={styles.fullScreenImage}
-                            resizeMode="contain"
-                        />
-                    )}
-                </View>
+                <GestureHandlerRootView style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.95)' }}>
+                    <View style={styles.fullScreenImageContainer}>
+                        <TouchableOpacity
+                            style={styles.fullScreenCloseBtn}
+                            onPress={() => {
+                                setFullScreenImage(null);
+                                resetZoom();
+                            }}
+                        >
+                            <Ionicons name="close" size={28} color="#FFF" />
+                        </TouchableOpacity>
+
+                        {fullScreenImage && (
+                            <View style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+                                <GestureDetector gesture={composedGesture}>
+                                    <Animated.Image
+                                        source={{ uri: fullScreenImage }}
+                                        style={[
+                                            {
+                                                width: windowWidth,
+                                                height: Dimensions.get('window').height,
+                                            },
+                                            animatedImageStyle
+                                        ]}
+                                        resizeMode="contain"
+                                    />
+                                </GestureDetector>
+                            </View>
+                        )}
+                    </View>
+                </GestureHandlerRootView>
             </Modal>
 
             {/* 5-Second Dismiss Fee Reminder Alert Overlay */}
@@ -889,6 +1010,12 @@ export default function ParentHomeScreen() {
                     </View>
                 </Modal>
             )}
+
+            {/* Instagram-Style Multi-Account Switcher Modal */}
+            <AccountSwitcherModal
+                visible={showAccountSwitcher}
+                onClose={() => setShowAccountSwitcher(false)}
+            />
         </LinearGradient>
     );
 }
@@ -1236,14 +1363,36 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontWeight: '600'
     },
-    alertBackBtn: {
-        paddingVertical: 10,
-        alignItems: 'center',
-        marginTop: 4
-    },
     alertBackBtnText: {
         fontSize: 12,
         color: 'rgba(255, 255, 255, 0.4)',
         textDecorationLine: 'underline'
-    }
+    },
+    modalHeaderBar: {
+        width: '100%',
+        height: 60,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        marginTop: Platform.OS === 'ios' ? 50 : 20,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    modalHeaderTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+    headerBtn: { padding: 8 },
+    zoomControlBar: {
+        width: '100%',
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        paddingVertical: 16,
+        backgroundColor: 'rgba(21, 14, 40, 0.95)',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.05)',
+        paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+    },
+    zoomBtn: { alignItems: 'center', minWidth: 70 },
+    zoomBtnReset: { opacity: 0.8 },
+    zoomBtnText: { color: '#FFF', fontSize: 11, fontWeight: '600', marginTop: 4 },
 });
