@@ -701,6 +701,15 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    fullScreenCloseBtn: {
+        position: 'absolute',
+        top: 48,
+        right: 20,
+        zIndex: 50,
+        padding: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        borderRadius: 20,
+    },
     modalHeaderBar: {
         width: '100%',
         height: 60,

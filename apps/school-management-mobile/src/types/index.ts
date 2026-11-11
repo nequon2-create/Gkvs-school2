@@ -1,4 +1,4 @@
-export type UserRole = 'teacher' | 'parent';
+export type UserRole = 'teacher' | 'parent' | 'student';
 
 export interface LoggedInUser {
     id: string;
@@ -35,6 +35,7 @@ export interface Student {
     academic_year_id: string | null;
     is_active: boolean | null;
     login_id: string | null;
+    aadhar_number?: string | null;
 }
 
 export interface Teacher {
@@ -52,6 +53,7 @@ export interface Teacher {
     date_of_birth: string | null;
     address: string | null;
     login_id: string | null;
+    aadhar_number?: string | null;
 }
 
 export interface SchoolClass {
@@ -181,9 +183,10 @@ export type ParentTabParamList = {
 
 export type TeacherTabParamList = {
     Home: undefined;
-    Events: undefined;
-    Leaderboard: undefined;
+    Marks: undefined;
     Attendance: undefined;
+    Leaderboard: undefined;
+    Events: undefined;
     Profile: undefined;
 };
 

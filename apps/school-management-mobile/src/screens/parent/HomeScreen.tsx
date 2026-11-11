@@ -1363,6 +1363,11 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontWeight: '600'
     },
+    alertBackBtn: {
+        alignItems: 'center',
+        marginTop: 10,
+        padding: 6,
+    },
     alertBackBtnText: {
         fontSize: 12,
         color: 'rgba(255, 255, 255, 0.4)',

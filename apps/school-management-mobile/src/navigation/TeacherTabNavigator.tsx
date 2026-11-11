@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { TeacherTabParamList } from '../types';
 
 import TeacherHomeScreen from '../screens/teacher/HomeScreen';
+import TeacherMarksScreen from '../screens/teacher/MarksScreen';
 import TeacherEventsScreen from '../screens/teacher/EventsScreen';
 import TeacherLeaderboardScreen from '../screens/teacher/LeaderboardScreen';
 import TeacherAttendanceScreen from '../screens/teacher/AttendanceScreen';
@@ -33,9 +34,10 @@ export default function TeacherTabNavigator() {
                 tabBarIcon: ({ focused, color, size }) => {
                     const icons: Record<string, [string, string]> = {
                         Home: ['home', 'home-outline'],
-                        Events: ['calendar', 'calendar-outline'],
-                        Leaderboard: ['trophy', 'trophy-outline'],
+                        Marks: ['create', 'create-outline'],
                         Attendance: ['checkmark-circle', 'checkmark-circle-outline'],
+                        Leaderboard: ['trophy', 'trophy-outline'],
+                        Events: ['calendar', 'calendar-outline'],
                         Profile: ['person', 'person-outline'],
                     };
                     const [active, inactive] = icons[route.name] ?? ['ellipse', 'ellipse-outline'];
@@ -44,9 +46,10 @@ export default function TeacherTabNavigator() {
             })}
         >
             <Tab.Screen name="Home" component={TeacherHomeScreen} options={{ tabBarLabel: 'Home' }} />
-            <Tab.Screen name="Events" component={TeacherEventsScreen} options={{ tabBarLabel: 'Events' }} />
-            <Tab.Screen name="Leaderboard" component={TeacherLeaderboardScreen} options={{ tabBarLabel: 'Arena' }} />
+            <Tab.Screen name="Marks" component={TeacherMarksScreen} options={{ tabBarLabel: 'Marks' }} />
             <Tab.Screen name="Attendance" component={TeacherAttendanceScreen} options={{ tabBarLabel: 'Attendance' }} />
+            <Tab.Screen name="Leaderboard" component={TeacherLeaderboardScreen} options={{ tabBarLabel: 'Arena' }} />
+            <Tab.Screen name="Events" component={TeacherEventsScreen} options={{ tabBarLabel: 'Events' }} />
             <Tab.Screen name="Profile" component={TeacherProfileScreen} options={{ tabBarLabel: 'Profile' }} />
         </Tab.Navigator>
     );

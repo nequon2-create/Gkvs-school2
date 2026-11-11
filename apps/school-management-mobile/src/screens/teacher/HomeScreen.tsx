@@ -197,6 +197,22 @@ export default function TeacherHomeScreen() {
                         <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.3)" />
                     </TouchableOpacity>
 
+                    {/* Marks Workspace Quick Action */}
+                    <TouchableOpacity
+                        style={styles.actionCard}
+                        activeOpacity={0.8}
+                        onPress={() => (navigation as any).navigate('Marks')}
+                    >
+                        <View style={[styles.actionIconBg, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                            <Ionicons name="create-outline" size={22} color="#10B981" />
+                        </View>
+                        <View style={styles.actionText}>
+                            <Text style={styles.actionTitle}>Marks Workspace</Text>
+                            <Text style={styles.actionSub}>Generate sheet and publish exam marks</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.3)" />
+                    </TouchableOpacity>
+
                     {/* Notifications Card */}
                     {notifications.length > 0 && (
                         <View style={styles.cardContainer}>
