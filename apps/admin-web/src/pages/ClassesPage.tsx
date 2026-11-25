@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const CLASS_GRADIENTS = [
@@ -25,6 +26,9 @@ interface Student {
 
 export function ClassesPage() {
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const classIdParam = searchParams.get('classId');
+
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedClass, setSelectedClass] = useState<string | null>(null);
     const [students, setStudents] = useState<Student[]>([]);
@@ -33,9 +37,61 @@ export function ClassesPage() {
     const [dbClasses, setDbClasses] = useState<any[]>([]);
     const [classCounts, setClassCounts] = useState<{ [key: string]: number }>({});
 
+    const loadClassStudents = useCallback(async (classId: string) => {
+        setLoading(true);
+        try {
+            setSelectedClass(classId);
+
+            // Fetch class details
+            const { data: clsData } = await supabase
+                .from('classes')
+                .select('id, class_name, section')
+                .eq('id', classId)
+                .single();
+
+            if (clsData) {
+                setClassName(
+                    `Class ${clsData.class_name}${clsData.section ? ` - ${clsData.section}` : ''}`
+                );
+            }
+
+            const { data: currentYear } = await supabase
+                .from('academic_years')
+                .select('id')
+                .eq('is_current', true)
+                .single();
+
+            if (!currentYear) return;
+
+            const { data: studentsData } = await supabase
+                .from('students')
+                .select('id, full_name, registration_number, roll_number, photo_url')
+                .eq('class_id', classId)
+                .eq('academic_year_id', currentYear.id)
+                .eq('is_active', true)
+                .order('full_name');
+
+            setStudents(studentsData || []);
+        } catch (err) {
+            console.error('Error loading class students:', err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
         fetchClassesAndCounts();
     }, []);
+
+    useEffect(() => {
+        if (classIdParam) {
+            loadClassStudents(classIdParam);
+        } else {
+            setSelectedClass(null);
+            setStudents([]);
+            setClassName('');
+        }
+    }, [classIdParam, loadClassStudents]);
 
     const fetchClassesAndCounts = async () => {
         setLoading(true);
@@ -101,36 +157,8 @@ export function ClassesPage() {
         }
     };
 
-    const handleClassClick = async (classId: string, classNameStr: string, section?: string | null) => {
-        setLoading(true);
-        try {
-            setSelectedClass(classId);
-            setClassName(
-                `Class ${classNameStr}${section ? ` - ${section}` : ''}`
-            );
-
-            const { data: currentYear } = await supabase
-                .from('academic_years')
-                .select('id')
-                .eq('is_current', true)
-                .single();
-
-            if (!currentYear) return;
-
-            const { data: studentsData } = await supabase
-                .from('students')
-                .select('id, full_name, registration_number, roll_number, photo_url')
-                .eq('class_id', classId)
-                .eq('academic_year_id', currentYear.id)
-                .eq('is_active', true)
-                .order('full_name');
-
-            setStudents(studentsData || []);
-        } catch (err) {
-            console.error('Error:', err);
-        } finally {
-            setLoading(false);
-        }
+    const handleClassClick = (classId: string) => {
+        setSearchParams({ classId });
     };
 
     const formatClassLabel = (name: string) => {
@@ -147,7 +175,7 @@ export function ClassesPage() {
         return (
             <div style={{ padding: '32px' }}>
                 <button
-                    onClick={() => setSelectedClass(null)}
+                    onClick={() => setSearchParams({})}
                     style={{
                         background: 'transparent',
                         border: 'none',
@@ -161,7 +189,7 @@ export function ClassesPage() {
                         gap: '8px',
                     }}
                 >
-                    ← Back to All Classes
+                    <ArrowLeft size={18} /> Back to All Classes
                 </button>
 
                 <h1 style={{ fontSize: '40px', fontWeight: '700', color: '#1D1D1F', marginBottom: '8px' }}>
@@ -313,7 +341,7 @@ export function ClassesPage() {
                 {dbClasses.map((cls, index) => (
                     <div
                         key={cls.id}
-                        onClick={() => handleClassClick(cls.id, cls.class_name, cls.section)}
+                        onClick={() => handleClassClick(cls.id)}
                         style={{
                             background: CLASS_GRADIENTS[index % CLASS_GRADIENTS.length],
                             borderRadius: '24px',

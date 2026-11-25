@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { MarksCard } from '../components/marks/MarksCard';
 import { ReceiptViewModal } from '../components/shared/ReceiptViewModal';
-import { FileText, ReceiptText, Eye, EyeOff, Copy, Check } from 'lucide-react';
+import { FileText, ReceiptText, Eye, EyeOff, Copy, Check, ArrowLeft } from 'lucide-react';
 
 interface Student {
     id: string;
@@ -306,7 +306,21 @@ export function StudentProfilePage() {
         return (
             <div style={{ padding: '80px 20px', textAlign: 'center' }}>
                 <h2>Student Not Found</h2>
-                <button onClick={() => navigate('/students')}>Back to Students</button>
+                <button
+                    onClick={() => navigate(-1)}
+                    style={{
+                        marginTop: '16px',
+                        padding: '10px 20px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        background: '#0071E3',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                    }}
+                >
+                    ← Go Back
+                </button>
             </div>
         );
     }
@@ -332,18 +346,24 @@ export function StudentProfilePage() {
                 }}
             >
                 <button
-                    onClick={() => navigate('/students')}
+                    onClick={() => navigate(-1)}
                     style={{
                         width: '44px',
                         height: '44px',
                         background: '#fff',
                         border: 'none',
                         borderRadius: '12px',
-                        fontSize: '20px',
                         cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                        transition: 'transform 0.15s ease, background-color 0.15s ease',
                     }}
+                    title="Go back"
+                    aria-label="Go back"
                 >
-                    ←
+                    <ArrowLeft size={20} color="#1D1D1F" />
                 </button>
                 <button
                     onClick={() => navigate(`/students/${id}/edit`)}
