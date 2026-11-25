@@ -7,6 +7,7 @@ import {
     XAxis,
     ResponsiveContainer,
 } from 'recharts';
+import { Eye, EyeOff, Copy, Check } from 'lucide-react';
 
 interface Teacher {
     id: string;
@@ -22,6 +23,8 @@ interface Teacher {
     address?: string;
     joining_date?: string;
     subjects?: string[];
+    login_id?: string;
+    password?: string;
 }
 
 interface AttendanceRecord {
@@ -43,6 +46,8 @@ export function TeacherProfilePage() {
         classesTaught: 0,
         studentsTaught: 0,
     });
+    const [showTeacherPassword, setShowTeacherPassword] = useState(false);
+    const [copiedPassword, setCopiedPassword] = useState(false);
 
     useEffect(() => {
         if (id) {
@@ -381,6 +386,106 @@ export function TeacherProfilePage() {
                         </div>
                     )}
                 </ResponsiveContainer>
+            </div>
+
+            {/* Account Credentials Section (Admin View) */}
+            <div style={{ padding: '0 20px 20px 20px' }}>
+                <h3
+                    style={{
+                        fontSize: '18px',
+                        fontWeight: '700',
+                        color: '#fff',
+                        marginBottom: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                    }}
+                >
+                    🔐 Account & Login Credentials
+                </h3>
+
+                <div
+                    style={{
+                        background: '#fff',
+                        borderRadius: '16px',
+                        padding: '20px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    }}
+                >
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+                        <div>
+                            <div style={{ fontSize: '13px', color: '#8E8E8E', marginBottom: '4px' }}>
+                                Teacher Login ID
+                            </div>
+                            <div style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span>{teacher.login_id || teacher.registration_number}</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                                Used to sign into Teacher mobile & web portals
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style={{ fontSize: '13px', color: '#8E8E8E', marginBottom: '4px' }}>
+                                Teacher Password
+                            </div>
+                            <div style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ fontFamily: showTeacherPassword ? 'inherit' : 'monospace', letterSpacing: showTeacherPassword ? 'normal' : '2px' }}>
+                                    {showTeacherPassword ? (teacher.password || '123456') : '••••••••'}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowTeacherPassword(!showTeacherPassword)}
+                                    style={{
+                                        background: '#F1F5F9',
+                                        border: '1px solid #E2E8F0',
+                                        borderRadius: '8px',
+                                        padding: '4px 10px',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        fontSize: '12px',
+                                        color: '#2563EB',
+                                        fontWeight: '600',
+                                    }}
+                                    title={showTeacherPassword ? 'Hide Password' : 'Show Password'}
+                                >
+                                    {showTeacherPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                                    <span>{showTeacherPassword ? 'Hide' : 'View'}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(teacher.password || '123456');
+                                        setCopiedPassword(true);
+                                        setTimeout(() => setCopiedPassword(false), 2000);
+                                    }}
+                                    style={{
+                                        background: '#F1F5F9',
+                                        border: '1px solid #E2E8F0',
+                                        borderRadius: '8px',
+                                        padding: '4px 10px',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        fontSize: '12px',
+                                        color: copiedPassword ? '#10B981' : '#64748B',
+                                        fontWeight: '600',
+                                    }}
+                                    title="Copy Password"
+                                >
+                                    {copiedPassword ? <Check size={14} /> : <Copy size={14} />}
+                                    <span>{copiedPassword ? 'Copied' : 'Copy'}</span>
+                                </button>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                                Default is 123456 if not modified
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Teacher Details */}

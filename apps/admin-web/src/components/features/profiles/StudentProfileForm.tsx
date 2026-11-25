@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { PhotoUpload } from '../../common/PhotoUpload';
+import { AppleDatePicker } from '../../common/AppleDatePicker';
+import { Eye, EyeOff } from 'lucide-react';
 import type { StudentFormData, Gender } from '../../../types/profile.types';
 import type { AcademicYear } from '../../../types/academic-years.types';
 import {
@@ -265,21 +267,17 @@ export function StudentProfileForm({
                     </div>
 
                     <div className="form-group">
-                        <label htmlFor="date_of_birth" className="form-label">
-                            Date of Birth <span className="required">*</span>
-                        </label>
-                        <input
-                            id="date_of_birth"
-                            type="date"
-                            className={`form-input ${touched.date_of_birth && errors.date_of_birth ? 'error' : ''}`}
+                        <AppleDatePicker
+                            label="Date of Birth"
+                            required
                             value={formData.date_of_birth}
-                            onChange={(e) => handleChange('date_of_birth', e.target.value)}
-                            onBlur={() => handleBlur('date_of_birth')}
+                            onChange={(dateStr) => handleChange('date_of_birth', dateStr)}
+                            error={touched.date_of_birth ? errors.date_of_birth : undefined}
                             disabled={loading}
+                            defaultYear={new Date().getFullYear() - 10}
+                            minYear={new Date().getFullYear() - 25}
+                            maxYear={new Date().getFullYear() - 3}
                         />
-                        {touched.date_of_birth && errors.date_of_birth && (
-                            <span className="error-message">{errors.date_of_birth}</span>
-                        )}
                     </div>
                 </div>
             </section>
@@ -550,23 +548,28 @@ export function StudentProfileForm({
                                 disabled={loading}
                                 placeholder={isEditing ? 'Leave blank to keep current' : 'Default: 123456'}
                                 autoComplete="new-password"
-                                style={{ paddingRight: '40px' }}
+                                style={{ paddingRight: '44px' }}
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
                                 style={{
                                     position: 'absolute',
-                                    right: '10px',
+                                    right: '12px',
                                     background: 'none',
                                     border: 'none',
                                     cursor: 'pointer',
-                                    fontSize: '16px',
-                                    color: '#6e6e73'
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#64748B',
+                                    padding: '4px',
+                                    borderRadius: '6px',
+                                    transition: 'color 150ms ease',
                                 }}
                                 title={showPassword ? 'Hide Password' : 'Show Password'}
                             >
-                                {showPassword ? '👁️' : '👁️‍🗨️'}
+                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
                         </div>
                     </div>

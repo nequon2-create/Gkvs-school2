@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { Camera, UploadCloud, X, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import './PhotoUpload.css';
 
 interface PhotoUploadProps {
     currentPhoto?: string;
@@ -16,29 +18,33 @@ export function PhotoUpload({
 }: PhotoUploadProps) {
     const [uploading, setUploading] = useState(false);
     const [preview, setPreview] = useState(currentPhoto || '');
+    const [isDragging, setIsDragging] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const uploadPhoto = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFile = async (file: File) => {
+        if (!file) return;
+
+        // Validation: Max 5MB
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Image size exceeds 5MB. Please choose a smaller photo.');
+            return;
+        }
+
         try {
             setUploading(true);
-
-            if (!event.target.files || event.target.files.length === 0) {
-                return; // User cancelled selection
-            }
-
-            const file = event.target.files[0];
             const fileExt = file.name.split('.').pop();
-            const fileName = `${Math.random()}.${fileExt}`;
+            const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
             const filePath = `${fileName}`;
 
-            // Upload to Supabase Storage
+            // Upload to designated Supabase bucket
             const { error: uploadError } = await supabase.storage
                 .from(bucketName)
                 .upload(filePath, file);
 
             if (uploadError) {
-                // Fallback to 'avatars' if specific bucket fails (handling potential missing buckets)
+                // Fallback to 'avatars' bucket
                 if (bucketName !== 'avatars') {
-                    console.warn(`Upload to ${bucketName} failed, trying 'avatars'...`, uploadError);
+                    console.warn(`Upload to ${bucketName} failed, falling back to avatars...`, uploadError);
                     const { error: fallbackError } = await supabase.storage
                         .from('avatars')
                         .upload(filePath, file);
@@ -53,88 +59,118 @@ export function PhotoUpload({
                 throw uploadError;
             }
 
-            // Get public URL
             const { data } = supabase.storage.from(bucketName).getPublicUrl(filePath);
-
             setPreview(data.publicUrl);
             onPhotoChange(data.publicUrl);
         } catch (error: any) {
-            alert('Error uploading photo: ' + (error.message || 'Unknown error'));
+            console.error('Error uploading photo:', error);
+            alert('Failed to upload photo: ' + (error.message || 'Storage error'));
         } finally {
             setUploading(false);
         }
     };
 
-    return (
-        <div style={{ marginBottom: '24px' }}>
-            <label
-                style={{
-                    display: 'block',
-                    fontSize: '15px',
-                    fontWeight: '500',
-                    color: '#1D1D1F',
-                    marginBottom: '12px',
-                }}
-            >
-                {label}
-            </label>
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            handleFile(e.target.files[0]);
+        }
+    };
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-                {/* Preview */}
-                <div
-                    style={{
-                        width: '120px',
-                        height: '120px',
-                        borderRadius: '50%',
-                        background: preview
-                            ? `url(${preview}) center/cover`
-                            : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        border: '2px solid rgba(0,0,0,0.1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#fff',
-                        fontSize: '48px',
-                        fontWeight: '700',
-                        overflow: 'hidden'
-                    }}
-                >
-                    {!preview && '?'}
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = () => {
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleFile(e.dataTransfer.files[0]);
+        }
+    };
+
+    const handleRemove = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setPreview('');
+        onPhotoChange('');
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    return (
+        <div className="apple-photo-upload-wrapper">
+            <span className="apple-photo-label">{label}</span>
+
+            <div
+                className={`apple-photo-dropzone ${isDragging ? 'dragging' : ''} ${preview ? 'has-preview' : ''}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => !uploading && fileInputRef.current?.click()}
+            >
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png, image/jpeg, image/jpg, image/webp"
+                    onChange={handleInputChange}
+                    style={{ display: 'none' }}
+                    disabled={uploading}
+                />
+
+                {/* Avatar Preview Sphere */}
+                <div className="apple-avatar-preview">
+                    {preview ? (
+                        <img src={preview} alt="Profile" className="apple-avatar-image" />
+                    ) : (
+                        <div className="apple-avatar-empty">
+                            <Camera size={34} className="apple-camera-icon" />
+                        </div>
+                    )}
+
+                    {uploading && (
+                        <div className="apple-avatar-loading-overlay">
+                            <RefreshCw size={26} className="apple-spinner-icon" />
+                        </div>
+                    )}
                 </div>
 
-                {/* Upload Button */}
-                <div>
-                    <input
-                        type="file"
-                        id={`photo-upload-${label.replace(/\s+/g, '-').toLowerCase()}`}
-                        accept="image/*"
-                        onChange={uploadPhoto}
-                        disabled={uploading}
-                        style={{ display: 'none' }}
-                    />
-                    <label
-                        htmlFor={`photo-upload-${label.replace(/\s+/g, '-').toLowerCase()}`}
-                        style={{
-                            display: 'inline-block',
-                            padding: '12px 24px',
-                            background: uploading ? '#86868B' : '#0071E3',
-                            color: '#fff',
-                            borderRadius: '980px',
-                            fontSize: '15px',
-                            fontWeight: '500',
-                            cursor: uploading ? 'not-allowed' : 'pointer',
-                        }}
-                    >
-                        {uploading ? 'Uploading...' : 'Choose Photo'}
-                    </label>
-                    <p
-                        style={{
-                            fontSize: '13px',
-                            color: '#86868B',
-                            marginTop: '8px',
-                        }}
-                    >
-                        JPG, PNG or GIF (max 5MB)
+                {/* Info & Action Controls */}
+                <div className="apple-photo-details">
+                    <div className="apple-photo-actions">
+                        <button
+                            type="button"
+                            className="apple-upload-btn"
+                            disabled={uploading}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                fileInputRef.current?.click();
+                            }}
+                        >
+                            <UploadCloud size={16} />
+                            <span>{preview ? 'Change Photo' : 'Upload Photo'}</span>
+                        </button>
+
+                        {preview && (
+                            <button
+                                type="button"
+                                className="apple-remove-btn"
+                                onClick={handleRemove}
+                                disabled={uploading}
+                                title="Remove photo"
+                            >
+                                <X size={15} />
+                                <span>Remove</span>
+                            </button>
+                        )}
+                    </div>
+
+                    <p className="apple-photo-hint">
+                        Drag and drop or click to upload. JPG, PNG or WebP up to 5MB.
                     </p>
                 </div>
             </div>

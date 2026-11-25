@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { PhotoUpload } from '../../common/PhotoUpload';
+import { AppleDatePicker } from '../../common/AppleDatePicker';
+import { Eye, EyeOff } from 'lucide-react';
 import type { TeacherFormData, Gender } from '../../../types/profile.types';
 import {
     validateRequired,
@@ -24,6 +26,7 @@ export function TeacherProfileForm({
     initialData,
     isEditing = false,
 }: TeacherProfileFormProps) {
+    const [showPassword, setShowPassword] = useState(false);
     const [formData, setFormData] = useState<TeacherFormData>({
         full_name: initialData?.full_name || '',
         gender: initialData?.gender || 'male',
@@ -41,6 +44,15 @@ export function TeacherProfileForm({
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [touched, setTouched] = useState<Record<string, boolean>>({});
 
+    const generateRandomLoginId = () => {
+        const randomNum = Math.floor(100 + Math.random() * 900);
+        const namePart = formData.full_name
+            ? formData.full_name.trim().split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '')
+            : 'tch';
+        const generated = `${namePart}${randomNum}`;
+        setFormData((prev) => ({ ...prev, login_id: generated }));
+    };
+
     const validate = (): boolean => {
         const newErrors: Record<string, string> = {};
 
@@ -56,24 +68,18 @@ export function TeacherProfileForm({
         const qualificationError = validateRequired(formData.qualification, 'Qualification');
         if (qualificationError) newErrors.qualification = qualificationError;
 
-        if (!validatePhone(formData.phone)) {
+        // Phone is optional: validate only if entered
+        if (formData.phone && !validatePhone(formData.phone)) {
             newErrors.phone = 'Please enter a valid 10-digit phone number';
         }
 
-        if (!validateEmail(formData.email)) {
+        // Email is optional: validate only if entered
+        if (formData.email && !validateEmail(formData.email)) {
             newErrors.email = 'Please enter a valid email address';
         }
 
         if (formData.photo_url && !validateUrl(formData.photo_url)) {
             newErrors.photo_url = 'Please enter a valid URL';
-        }
-
-        const loginIdError = validateRequired(formData.login_id, 'Login ID');
-        if (loginIdError) newErrors.login_id = loginIdError;
-
-        if (!isEditing) {
-            const passwordError = validateRequired(formData.password, 'Password');
-            if (passwordError) newErrors.password = passwordError;
         }
 
         setErrors(newErrors);
@@ -89,7 +95,27 @@ export function TeacherProfileForm({
 
         if (!validate()) return;
 
-        await onSubmit(formData);
+        // Auto-generate login_id if left empty
+        let finalLoginId = formData.login_id.trim();
+        if (!finalLoginId) {
+            const randomNum = Math.floor(100 + Math.random() * 900);
+            const namePart = formData.full_name
+                ? formData.full_name.trim().split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '')
+                : 'tch';
+            finalLoginId = `${namePart}${randomNum}`;
+        }
+
+        // Default password to 123456 if left empty (for new profiles)
+        let finalPassword = formData.password.trim();
+        if (!isEditing && !finalPassword) {
+            finalPassword = '123456';
+        }
+
+        await onSubmit({
+            ...formData,
+            login_id: finalLoginId,
+            password: finalPassword,
+        });
     };
 
     const handleBlur = (field: string) => {
@@ -110,20 +136,21 @@ export function TeacherProfileForm({
             <section className="form-section">
                 <h3 className="section-title">Personal Information</h3>
 
+                {/* Single Polished Photo Upload */}
                 <PhotoUpload
                     currentPhoto={formData.photo_url}
                     onPhotoChange={(url) => {
-                        setFormData(prev => ({ ...prev, photo_url: url }));
-                        // Clear validation error if any
+                        setFormData((prev) => ({ ...prev, photo_url: url }));
                         if (errors.photo_url) {
-                            setErrors(prev => {
+                            setErrors((prev) => {
                                 const newErrors = { ...prev };
                                 delete newErrors.photo_url;
                                 return newErrors;
                             });
                         }
                     }}
-                    bucketName="profiles"
+                    bucketName="teacher-photos"
+                    label="Teacher Profile Photo"
                 />
 
                 <div className="form-group">
@@ -168,21 +195,17 @@ export function TeacherProfileForm({
                     </div>
 
                     <div className="form-group">
-                        <label htmlFor="date_of_birth" className="form-label">
-                            Date of Birth <span className="required">*</span>
-                        </label>
-                        <input
-                            id="date_of_birth"
-                            type="date"
-                            className={`form-input ${touched.date_of_birth && errors.date_of_birth ? 'error' : ''}`}
+                        <AppleDatePicker
+                            label="Date of Birth"
+                            required
                             value={formData.date_of_birth}
-                            onChange={(e) => handleChange('date_of_birth', e.target.value)}
-                            onBlur={() => handleBlur('date_of_birth')}
+                            onChange={(dateStr) => handleChange('date_of_birth', dateStr)}
+                            error={touched.date_of_birth ? errors.date_of_birth : undefined}
                             disabled={loading}
+                            defaultYear={new Date().getFullYear() - 30}
+                            minYear={new Date().getFullYear() - 70}
+                            maxYear={new Date().getFullYear() - 20}
                         />
-                        {touched.date_of_birth && errors.date_of_birth && (
-                            <span className="error-message">{errors.date_of_birth}</span>
-                        )}
                     </div>
                 </div>
             </section>
@@ -204,7 +227,7 @@ export function TeacherProfileForm({
                             onChange={(e) => handleChange('subject', e.target.value)}
                             onBlur={() => handleBlur('subject')}
                             disabled={loading}
-                            placeholder="e.g., Mathematics, Science"
+                            placeholder="e.g., Mathematics, Science, English"
                         />
                         {touched.subject && errors.subject && (
                             <span className="error-message">{errors.subject}</span>
@@ -223,7 +246,7 @@ export function TeacherProfileForm({
                             onChange={(e) => handleChange('qualification', e.target.value)}
                             onBlur={() => handleBlur('qualification')}
                             disabled={loading}
-                            placeholder="e.g., B.Ed, M.A."
+                            placeholder="e.g., B.Ed, M.Sc, M.A."
                         />
                         {touched.qualification && errors.qualification && (
                             <span className="error-message">{errors.qualification}</span>
@@ -232,14 +255,14 @@ export function TeacherProfileForm({
                 </div>
             </section>
 
-            {/* Contact Information */}
+            {/* Contact Information (Optional) */}
             <section className="form-section">
                 <h3 className="section-title">Contact Information</h3>
 
                 <div className="form-row">
                     <div className="form-group">
                         <label htmlFor="phone" className="form-label">
-                            Phone <span className="required">*</span>
+                            Phone <span className="optional">(Optional)</span>
                         </label>
                         <input
                             id="phone"
@@ -258,7 +281,7 @@ export function TeacherProfileForm({
 
                     <div className="form-group">
                         <label htmlFor="email" className="form-label">
-                            Email <span className="required">*</span>
+                            Email <span className="optional">(Optional)</span>
                         </label>
                         <input
                             id="email"
@@ -282,8 +305,23 @@ export function TeacherProfileForm({
                 <h3 className="section-title">Account Credentials</h3>
                 <div className="form-row">
                     <div className="form-group">
-                        <label htmlFor="login_id" className="form-label">
-                            Login ID <span className="required">*</span>
+                        <label htmlFor="login_id" className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Login ID <span className="optional">(Auto-generated if empty)</span></span>
+                            <button
+                                type="button"
+                                onClick={generateRandomLoginId}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#0071E3',
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    padding: 0
+                                }}
+                            >
+                                ⚡ Generate ID
+                            </button>
                         </label>
                         <input
                             id="login_id"
@@ -293,30 +331,54 @@ export function TeacherProfileForm({
                             onChange={(e) => handleChange('login_id', e.target.value)}
                             onBlur={() => handleBlur('login_id')}
                             disabled={loading}
-                            placeholder="Create a unique login ID"
+                            placeholder="Auto-generated e.g. anita402"
                             autoComplete="new-username"
                         />
                         {touched.login_id && errors.login_id && (
                             <span className="error-message">{errors.login_id}</span>
                         )}
-                        <span className="form-hint">This ID will be used for logging in</span>
+                        <span className="form-hint">This ID will be used for logging into Teacher portal</span>
                     </div>
 
                     <div className="form-group">
                         <label htmlFor="password" className="form-label">
-                            Password {isEditing ? <span className="optional">(Leave blank to keep current)</span> : <span className="required">*</span>}
+                            Password {!isEditing && <span className="optional">(Default: 123456)</span>}
                         </label>
-                        <input
-                            id="password"
-                            type="password"
-                            className={`form-input ${touched.password && errors.password ? 'error' : ''}`}
-                            value={formData.password}
-                            onChange={(e) => handleChange('password', e.target.value)}
-                            onBlur={() => handleBlur('password')}
-                            disabled={loading}
-                            placeholder="Create a strong password"
-                            autoComplete="new-password"
-                        />
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <input
+                                id="password"
+                                type={showPassword ? 'text' : 'password'}
+                                className={`form-input ${touched.password && errors.password ? 'error' : ''}`}
+                                value={formData.password}
+                                onChange={(e) => handleChange('password', e.target.value)}
+                                onBlur={() => handleBlur('password')}
+                                disabled={loading}
+                                placeholder={isEditing ? 'Leave blank to keep current' : 'Default: 123456'}
+                                autoComplete="new-password"
+                                style={{ paddingRight: '44px' }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '12px',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#64748B',
+                                    padding: '4px',
+                                    borderRadius: '6px',
+                                    transition: 'color 150ms ease',
+                                }}
+                                title={showPassword ? 'Hide Password' : 'Show Password'}
+                            >
+                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
                         {touched.password && errors.password && (
                             <span className="error-message">{errors.password}</span>
                         )}
@@ -324,20 +386,13 @@ export function TeacherProfileForm({
                 </div>
             </section>
 
-            {/* Additional Information */}
+            {/* Additional Information (Address) */}
             <section className="form-section">
                 <h3 className="section-title">Additional Information</h3>
 
-                <PhotoUpload
-                    currentPhoto={formData.photo_url}
-                    onPhotoChange={(url) => handleChange('photo_url', url)}
-                    bucketName="teacher-photos"
-                    label="Teacher Photo"
-                />
-
                 <div className="form-group">
                     <label htmlFor="address" className="form-label">
-                        Address
+                        Address <span className="optional">(Optional)</span>
                     </label>
                     <textarea
                         id="address"
@@ -371,7 +426,7 @@ export function TeacherProfileForm({
                     })}
                     disabled={loading}
                 >
-                    Reset
+                    Reset Form
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>
                     {loading ? (isEditing ? 'Saving...' : 'Creating...') : (isEditing ? 'Save Changes' : 'Create Teacher')}

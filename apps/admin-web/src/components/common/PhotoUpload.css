@@ -1,0 +1,186 @@
+/* ===================================================
+   Apple-Style Photo Upload Component
+   =================================================== */
+
+.apple-photo-upload-wrapper {
+    margin-bottom: 24px;
+}
+
+.apple-photo-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary, #0F172A);
+    margin-bottom: 10px;
+    letter-spacing: -0.01em;
+}
+
+.apple-photo-dropzone {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 16px 20px;
+    background: #FFFFFF;
+    border: 1.5px dashed var(--border-light, #CBD5E1);
+    border-radius: 18px;
+    cursor: pointer;
+    transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.apple-photo-dropzone:hover {
+    border-color: var(--apple-blue, #2563EB);
+    background: rgba(37, 99, 235, 0.02);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.06);
+}
+
+.apple-photo-dropzone.dragging {
+    border-color: var(--apple-blue, #2563EB);
+    background: rgba(37, 99, 235, 0.05);
+    transform: scale(1.01);
+}
+
+.apple-photo-dropzone.has-preview {
+    border-style: solid;
+    border-color: var(--border-light, #E2E8F0);
+}
+
+/* Avatar Preview */
+.apple-avatar-preview {
+    position: relative;
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: #F1F5F9;
+    border: 2px solid #FFFFFF;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.apple-avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.apple-avatar-empty {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #F8FAFC 0%, #E2E8F0 100%);
+}
+
+.apple-camera-icon {
+    color: var(--apple-blue, #2563EB);
+    opacity: 0.8;
+    transition: transform 150ms ease;
+}
+
+.apple-photo-dropzone:hover .apple-camera-icon {
+    transform: scale(1.1);
+}
+
+.apple-avatar-loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #FFFFFF;
+}
+
+.apple-spinner-icon {
+    animation: appleSpin 1s linear infinite;
+}
+
+@keyframes appleSpin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Details & Action Controls */
+.apple-photo-details {
+    flex: 1;
+}
+
+.apple-photo-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.apple-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 18px;
+    background: var(--apple-blue, #2563EB);
+    color: #FFFFFF;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    transition: all 120ms ease;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
+}
+
+.apple-upload-btn:hover:not(:disabled) {
+    background: var(--apple-blue-hover, #1D4ED8);
+    transform: translateY(-1px);
+}
+
+.apple-upload-btn:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.apple-remove-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 14px;
+    background: #F1F5F9;
+    color: #EF4444;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 12px;
+    border: 1px solid #E2E8F0;
+    cursor: pointer;
+    transition: all 120ms ease;
+}
+
+.apple-remove-btn:hover:not(:disabled) {
+    background: #FEE2E2;
+    border-color: #FCA5A5;
+}
+
+.apple-remove-btn:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.apple-photo-hint {
+    font-size: 12px;
+    color: var(--text-secondary, #64748B);
+    margin: 0;
+    line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+    .apple-photo-dropzone {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .apple-photo-actions {
+        justify-content: center;
+    }
+}

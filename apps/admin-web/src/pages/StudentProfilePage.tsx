@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { MarksCard } from '../components/marks/MarksCard';
 import { ReceiptViewModal } from '../components/shared/ReceiptViewModal';
-import { FileText, ReceiptText } from 'lucide-react';
+import { FileText, ReceiptText, Eye, EyeOff, Copy, Check } from 'lucide-react';
 
 interface Student {
     id: string;
@@ -33,6 +33,8 @@ interface Student {
     is_first_admission?: boolean;
     past_school_name?: string;
     past_class?: string;
+    login_id?: string;
+    password?: string;
 }
 
 interface Mark {
@@ -73,6 +75,8 @@ export function StudentProfilePage() {
     const [loadingReceipts, setLoadingReceipts] = useState(false);
     const [feeInfo, setFeeInfo] = useState<any | null>(null);
     const [selectedReceiptIdForModal, setSelectedReceiptIdForModal] = useState<string | null>(null);
+    const [showStudentPassword, setShowStudentPassword] = useState(false);
+    const [copiedPassword, setCopiedPassword] = useState(false);
 
     // Real stats calculated from database
     const [stats, setStats] = useState({
@@ -700,6 +704,106 @@ export function StudentProfilePage() {
                     </div>
                 )
             }
+
+            {/* Account Credentials Section (Admin View) */}
+            <div style={{ padding: '0 20px 20px 20px' }}>
+                <h3
+                    style={{
+                        fontSize: '18px',
+                        fontWeight: '700',
+                        color: '#fff',
+                        marginBottom: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                    }}
+                >
+                    🔐 Account & Login Credentials
+                </h3>
+
+                <div
+                    style={{
+                        background: '#fff',
+                        borderRadius: '16px',
+                        padding: '20px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    }}
+                >
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+                        <div>
+                            <div style={{ fontSize: '13px', color: '#8E8E8E', marginBottom: '4px' }}>
+                                Student Login ID
+                            </div>
+                            <div style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span>{student.login_id || student.registration_number}</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                                Used to sign into mobile & web portals
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style={{ fontSize: '13px', color: '#8E8E8E', marginBottom: '4px' }}>
+                                Student Password
+                            </div>
+                            <div style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ fontFamily: showStudentPassword ? 'inherit' : 'monospace', letterSpacing: showStudentPassword ? 'normal' : '2px' }}>
+                                    {showStudentPassword ? (student.password || '123456') : '••••••••'}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowStudentPassword(!showStudentPassword)}
+                                    style={{
+                                        background: '#F1F5F9',
+                                        border: '1px solid #E2E8F0',
+                                        borderRadius: '8px',
+                                        padding: '4px 10px',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        fontSize: '12px',
+                                        color: '#2563EB',
+                                        fontWeight: '600',
+                                    }}
+                                    title={showStudentPassword ? 'Hide Password' : 'Show Password'}
+                                >
+                                    {showStudentPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                                    <span>{showStudentPassword ? 'Hide' : 'View'}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(student.password || '123456');
+                                        setCopiedPassword(true);
+                                        setTimeout(() => setCopiedPassword(false), 2000);
+                                    }}
+                                    style={{
+                                        background: '#F1F5F9',
+                                        border: '1px solid #E2E8F0',
+                                        borderRadius: '8px',
+                                        padding: '4px 10px',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        fontSize: '12px',
+                                        color: copiedPassword ? '#10B981' : '#64748B',
+                                        fontWeight: '600',
+                                    }}
+                                    title="Copy Password"
+                                >
+                                    {copiedPassword ? <Check size={14} /> : <Copy size={14} />}
+                                    <span>{copiedPassword ? 'Copied' : 'Copy'}</span>
+                                </button>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                                Default is 123456 if not modified
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             {/* Student Details */}
             <div style={{ padding: '20px' }}>
