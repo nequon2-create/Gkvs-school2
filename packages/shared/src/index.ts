@@ -5,6 +5,7 @@ export * from './types/common.types';
 // Export constants
 export * from './constants/roles';
 export * from './constants/status';
+export * from './constants/theme';
 
 // Export utilities
 export * from './utils/date';

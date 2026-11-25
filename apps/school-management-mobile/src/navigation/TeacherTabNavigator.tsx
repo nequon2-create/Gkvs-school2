@@ -1,7 +1,9 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { TeacherTabParamList } from '../types';
+import { AppleColors, AppleShadows } from '../config/theme';
 
 import TeacherHomeScreen from '../screens/teacher/HomeScreen';
 import TeacherMarksScreen from '../screens/teacher/MarksScreen';
@@ -12,8 +14,8 @@ import TeacherProfileScreen from '../screens/teacher/ProfileScreen';
 
 const Tab = createBottomTabNavigator<TeacherTabParamList>();
 
-const ACTIVE_COLOR = '#2D7D46';
-const INACTIVE_COLOR = '#A0AEC0';
+const ACTIVE_COLOR = AppleColors.primary;
+const INACTIVE_COLOR = AppleColors.textTertiary;
 const TAB_BG = '#FFFFFF';
 
 export default function TeacherTabNavigator() {
@@ -25,12 +27,19 @@ export default function TeacherTabNavigator() {
                 tabBarInactiveTintColor: INACTIVE_COLOR,
                 tabBarStyle: {
                     backgroundColor: TAB_BG,
-                    borderTopWidth: 0,
-                    elevation: 8,
-                    height: 60,
-                    paddingBottom: 8,
+                    borderTopWidth: 1,
+                    borderTopColor: AppleColors.borderLight,
+                    position: 'absolute',
+                    bottom: Platform.OS === 'ios' ? 24 : 16,
+                    left: 18,
+                    right: 18,
+                    borderRadius: 22,
+                    height: 64,
+                    paddingTop: 8,
+                    paddingBottom: Platform.OS === 'ios' ? 0 : 8,
+                    ...AppleShadows.floating,
                 },
-                tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+                tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 3 },
                 tabBarIcon: ({ focused, color, size }) => {
                     const icons: Record<string, [string, string]> = {
                         Home: ['home', 'home-outline'],
@@ -41,7 +50,7 @@ export default function TeacherTabNavigator() {
                         Profile: ['person', 'person-outline'],
                     };
                     const [active, inactive] = icons[route.name] ?? ['ellipse', 'ellipse-outline'];
-                    return <Ionicons name={(focused ? active : inactive) as any} size={size} color={color} />;
+                    return <Ionicons name={(focused ? active : inactive) as any} size={focused ? size + 1 : size} color={color} />;
                 },
             })}
         >

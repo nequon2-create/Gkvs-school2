@@ -80,10 +80,14 @@
     color: var(--text-primary);
 }
 
+.nav-item:active {
+    transform: scale(0.98);
+}
+
 .nav-item.active {
-    background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+    background: var(--apple-blue);
     color: var(--text-inverse);
-    box-shadow: var(--shadow-blue);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
 
 .nav-icon {

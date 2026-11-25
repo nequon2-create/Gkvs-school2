@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { ParentTabParamList } from '../types';
+import { AppleColors, AppleShadows } from '../config/theme';
 
 import ParentHomeScreen from '../screens/parent/HomeScreen';
 import ParentEventsScreen from '../screens/parent/EventsScreen';
@@ -12,9 +13,9 @@ import ParentProfileScreen from '../screens/parent/ProfileScreen';
 
 const Tab = createBottomTabNavigator<ParentTabParamList>();
 
-const ACTIVE_COLOR = '#A855F7'; // Sleek premium neon purple
-const INACTIVE_COLOR = 'rgba(255, 255, 255, 0.4)';
-const TAB_BG = 'rgba(15, 11, 28, 0.92)';
+const ACTIVE_COLOR = AppleColors.primary;
+const INACTIVE_COLOR = AppleColors.textTertiary;
+const TAB_BG = '#FFFFFF';
 
 export default function ParentTabNavigator() {
     return (
@@ -26,22 +27,18 @@ export default function ParentTabNavigator() {
                 tabBarStyle: {
                     backgroundColor: TAB_BG,
                     borderTopWidth: 1,
-                    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+                    borderTopColor: AppleColors.borderLight,
                     position: 'absolute',
                     bottom: Platform.OS === 'ios' ? 24 : 16,
-                    left: 20,
-                    right: 20,
-                    borderRadius: 24,
+                    left: 18,
+                    right: 18,
+                    borderRadius: 22,
                     height: 64,
                     paddingTop: 8,
                     paddingBottom: Platform.OS === 'ios' ? 0 : 8,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 10 },
-                    shadowOpacity: 0.5,
-                    shadowRadius: 20,
-                    elevation: 10,
+                    ...AppleShadows.floating,
                 },
-                tabBarLabelStyle: { fontSize: 10, fontWeight: '600', marginTop: 4 },
+                tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 3 },
                 tabBarIcon: ({ focused, color, size }) => {
                     const icons: Record<string, [string, string]> = {
                         Home: ['home', 'home-outline'],
@@ -51,7 +48,7 @@ export default function ParentTabNavigator() {
                         Profile: ['person', 'person-outline'],
                     };
                     const [active, inactive] = icons[route.name] ?? ['ellipse', 'ellipse-outline'];
-                    return <Ionicons name={(focused ? active : inactive) as any} size={focused ? size + 2 : size} color={color} />;
+                    return <Ionicons name={(focused ? active : inactive) as any} size={focused ? size + 1 : size} color={color} />;
                 },
             })}
         >
@@ -63,4 +60,3 @@ export default function ParentTabNavigator() {
         </Tab.Navigator>
     );
 }
-

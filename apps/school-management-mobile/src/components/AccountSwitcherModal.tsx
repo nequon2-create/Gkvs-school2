@@ -3,10 +3,11 @@ import {
     View, Text, StyleSheet, Modal, TouchableOpacity, Image,
     TextInput, ActivityIndicator, Alert, ScrollView
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../config/supabase';
+import { AppleColors, AppleTypography, AppleShadows } from '../config/theme';
+import { AppleTouchable } from './AppleTouchable';
 
 interface AccountSwitcherModalProps {
     visible: boolean;
@@ -16,7 +17,6 @@ interface AccountSwitcherModalProps {
 export default function AccountSwitcherModal({ visible, onClose }: AccountSwitcherModalProps) {
     const { user, accounts, switchAccount, addAccount, removeAccount, updateAccountPhoto } = useAuthStore();
     
-    // Sync missing/updated student photos from Supabase when modal opens
     useEffect(() => {
         if (visible && accounts.length > 0) {
             const syncAccountPhotos = async () => {
@@ -42,10 +42,7 @@ export default function AccountSwitcherModal({ visible, onClose }: AccountSwitch
         }
     }, [visible]);
 
-    // Mode: 'list' | 'add'
     const [mode, setMode] = useState<'list' | 'add'>('list');
-    
-    // Add Account Form State
     const [loginId, setLoginId] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -87,7 +84,6 @@ export default function AccountSwitcherModal({ visible, onClose }: AccountSwitch
         try {
             const cleanId = loginId.trim();
 
-            // Query Supabase for student record by login_id or registration_number
             const { data: student, error } = await supabase
                 .from('students')
                 .select('*')
@@ -100,7 +96,6 @@ export default function AccountSwitcherModal({ visible, onClose }: AccountSwitch
                 return;
             }
 
-            // Construct LoggedInUser object
             const newStudentUser = {
                 id: student.id,
                 full_name: student.full_name,
@@ -116,7 +111,6 @@ export default function AccountSwitcherModal({ visible, onClose }: AccountSwitch
 
             await addAccount(newStudentUser);
             
-            // Reset form & close modal
             setLoginId('');
             setPassword('');
             setMode('list');
@@ -143,162 +137,159 @@ export default function AccountSwitcherModal({ visible, onClose }: AccountSwitch
                 activeOpacity={1}
                 onPress={onClose}
             >
-                <TouchableOpacity activeOpacity={1} style={styles.modalCardContainer}>
-                    <LinearGradient
-                        colors={['#150E28', '#090514']}
-                        style={styles.modalGradient}
-                    >
-                        {/* Drag indicator bar */}
-                        <View style={styles.dragBarContainer}>
-                            <View style={styles.dragBar} />
-                        </View>
+                <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
+                    {/* iOS Grabber */}
+                    <View style={styles.dragBarContainer}>
+                        <View style={styles.dragBar} />
+                    </View>
 
-                        {/* Modal Header */}
-                        <View style={styles.headerRow}>
-                            <Text style={styles.headerTitle}>
-                                {mode === 'list' ? 'Switch Student Account' : 'Add Child Account'}
+                    {/* Sheet Header */}
+                    <View style={styles.headerRow}>
+                        <Text style={styles.headerTitle}>
+                            {mode === 'list' ? 'Switch Student Account' : 'Add Child Account'}
+                        </Text>
+                        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                            <Ionicons name="close-circle" size={26} color={AppleColors.textTertiary} />
+                        </TouchableOpacity>
+                    </View>
+
+                    {mode === 'list' ? (
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
+                            <Text style={styles.sectionSubtitle}>
+                                Connected Accounts ({accounts.length})
                             </Text>
-                            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                                <Ionicons name="close" size={22} color="rgba(255,255,255,0.6)" />
-                            </TouchableOpacity>
-                        </View>
 
-                        {mode === 'list' ? (
-                            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
-                                <Text style={styles.sectionSubtitle}>
-                                    Logged In Accounts ({accounts.length})
-                                </Text>
+                            {accounts.map((acc) => {
+                                const isActive = user?.id === acc.id;
+                                return (
+                                    <AppleTouchable
+                                        key={acc.id}
+                                        style={[styles.accountCard, isActive && styles.activeAccountCard]}
+                                        onPress={() => handleSwitch(acc.id)}
+                                        hapticStyle="selection"
+                                    >
+                                        <View style={styles.avatarCircle}>
+                                            {acc.photo_url ? (
+                                                <Image source={{ uri: acc.photo_url }} style={styles.avatarImg} />
+                                            ) : (
+                                                <Text style={styles.avatarText}>
+                                                    {acc.full_name?.charAt(0).toUpperCase() || 'S'}
+                                                </Text>
+                                            )}
+                                        </View>
 
-                                {accounts.map((acc) => {
-                                    const isActive = user?.id === acc.id;
-                                    return (
-                                        <TouchableOpacity
-                                            key={acc.id}
-                                            activeOpacity={0.8}
-                                            style={[styles.accountCard, isActive && styles.activeAccountCard]}
-                                            onPress={() => handleSwitch(acc.id)}
-                                        >
-                                            <View style={styles.avatarCircle}>
-                                                {acc.photo_url ? (
-                                                    <Image source={{ uri: acc.photo_url }} style={{ width: '100%', height: '100%', borderRadius: 22 }} />
-                                                ) : (
-                                                    <Text style={styles.avatarText}>
-                                                        {acc.full_name?.charAt(0).toUpperCase() || 'S'}
-                                                    </Text>
+                                        <View style={styles.accountInfo}>
+                                            <View style={styles.nameRow}>
+                                                <Text style={styles.studentName} numberOfLines={1}>
+                                                    {acc.full_name}
+                                                </Text>
+                                                {isActive && (
+                                                    <View style={styles.activeTag}>
+                                                        <Text style={styles.activeTagText}>ACTIVE</Text>
+                                                    </View>
                                                 )}
                                             </View>
+                                            <Text style={styles.studentDetails}>
+                                                ID: {acc.login_id || acc.registration_number || 'N/A'}
+                                            </Text>
+                                        </View>
 
-                                            <View style={styles.accountInfo}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                    <Text style={styles.studentName} numberOfLines={1}>
-                                                        {acc.full_name}
-                                                    </Text>
-                                                    {isActive && (
-                                                        <View style={styles.activeTag}>
-                                                            <Text style={styles.activeTagText}>ACTIVE</Text>
-                                                        </View>
-                                                    )}
-                                                </View>
-                                                <Text style={styles.studentDetails}>
-                                                    Reg: {acc.registration_number || 'N/A'}
-                                                </Text>
+                                        {isActive ? (
+                                            <View style={styles.checkmarkCircle}>
+                                                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                                             </View>
+                                        ) : (
+                                            <TouchableOpacity
+                                                onPress={() => handleRemove(acc.id, acc.full_name)}
+                                                style={styles.removeBtn}
+                                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                            >
+                                                <Ionicons name="trash-outline" size={18} color={AppleColors.textTertiary} />
+                                            </TouchableOpacity>
+                                        )}
+                                    </AppleTouchable>
+                                );
+                            })}
 
-                                            {isActive ? (
-                                                <View style={styles.checkmarkCircle}>
-                                                    <Ionicons name="checkmark" size={18} color="#FFF" />
-                                                </View>
-                                            ) : (
-                                                <TouchableOpacity
-                                                    onPress={() => handleRemove(acc.id, acc.full_name)}
-                                                    style={styles.removeBtn}
-                                                >
-                                                    <Ionicons name="trash-outline" size={18} color="rgba(255,255,255,0.4)" />
-                                                </TouchableOpacity>
-                                            )}
-                                        </TouchableOpacity>
-                                    );
-                                })}
-
-                                {/* Add New Account Button */}
-                                <TouchableOpacity
-                                    activeOpacity={0.8}
-                                    style={styles.addAccountBtn}
-                                    onPress={() => setMode('add')}
-                                >
-                                    <View style={styles.addIconCircle}>
-                                        <Ionicons name="add" size={22} color="#A855F7" />
-                                    </View>
-                                    <Text style={styles.addAccountText}>Add Another Student Account</Text>
-                                </TouchableOpacity>
-                            </ScrollView>
-                        ) : (
-                            /* Add Account Form View */
-                            <View style={styles.formContainer}>
-                                <TouchableOpacity
-                                    style={styles.backToListBtn}
-                                    onPress={() => setMode('list')}
-                                >
-                                    <Ionicons name="arrow-back" size={18} color="#A855F7" />
-                                    <Text style={styles.backToListText}>Back to Accounts List</Text>
-                                </TouchableOpacity>
-
-                                <Text style={styles.formInstructions}>
-                                    Enter your second child's Student Registration ID & Password to link their profile.
-                                </Text>
-
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.inputLabel}>Student ID / Registration No.</Text>
-                                    <View style={styles.inputWrapper}>
-                                        <Ionicons name="person-outline" size={18} color="rgba(255,255,255,0.4)" />
-                                        <TextInput
-                                            style={styles.textInput}
-                                            value={loginId}
-                                            onChangeText={setLoginId}
-                                            placeholder="e.g. stu1042"
-                                            placeholderTextColor="rgba(255,255,255,0.3)"
-                                            autoCapitalize="none"
-                                        />
-                                    </View>
+                            {/* Add Account Button */}
+                            <AppleTouchable
+                                style={styles.addAccountBtn}
+                                onPress={() => setMode('add')}
+                                hapticStyle="light"
+                            >
+                                <View style={styles.addIconCircle}>
+                                    <Ionicons name="add" size={22} color={AppleColors.primary} />
                                 </View>
+                                <Text style={styles.addAccountText}>Add Another Child's Account</Text>
+                            </AppleTouchable>
+                        </ScrollView>
+                    ) : (
+                        <View style={styles.formContainer}>
+                            <TouchableOpacity
+                                style={styles.backToListBtn}
+                                onPress={() => setMode('list')}
+                            >
+                                <Ionicons name="chevron-back" size={18} color={AppleColors.primary} />
+                                <Text style={styles.backToListText}>Back to Accounts</Text>
+                            </TouchableOpacity>
 
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.inputLabel}>Password</Text>
-                                    <View style={styles.inputWrapper}>
-                                        <Ionicons name="lock-closed-outline" size={18} color="rgba(255,255,255,0.4)" />
-                                        <TextInput
-                                            style={styles.textInput}
-                                            value={password}
-                                            onChangeText={setPassword}
-                                            placeholder="Enter password"
-                                            placeholderTextColor="rgba(255,255,255,0.3)"
-                                            secureTextEntry={!showPassword}
-                                        />
-                                        <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                                            <Ionicons
-                                                name={showPassword ? "eye-off-outline" : "eye-outline"}
-                                                size={18}
-                                                color="rgba(255,255,255,0.4)"
-                                            />
-                                        </TouchableOpacity>
-                                    </View>
+                            <Text style={styles.formInstructions}>
+                                Enter the Student ID and Password provided by the school to link another account.
+                            </Text>
+
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.inputLabel}>Student Login ID</Text>
+                                <View style={styles.inputWrapper}>
+                                    <Ionicons name="person-outline" size={18} color={AppleColors.textTertiary} />
+                                    <TextInput
+                                        style={styles.textInput}
+                                        placeholder="e.g. STU102 or Reg Number"
+                                        placeholderTextColor={AppleColors.textTertiary}
+                                        value={loginId}
+                                        onChangeText={setLoginId}
+                                        autoCapitalize="none"
+                                        autoCorrect={false}
+                                    />
                                 </View>
-
-                                <TouchableOpacity
-                                    activeOpacity={0.8}
-                                    style={styles.submitAddBtn}
-                                    onPress={handleAddAccountSubmit}
-                                    disabled={authenticating}
-                                >
-                                    {authenticating ? (
-                                        <ActivityIndicator size="small" color="#FFF" />
-                                    ) : (
-                                        <Text style={styles.submitAddBtnText}>Link & Switch to Account</Text>
-                                    )}
-                                </TouchableOpacity>
                             </View>
-                        )}
-                    </LinearGradient>
+
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.inputLabel}>Password</Text>
+                                <View style={styles.inputWrapper}>
+                                    <Ionicons name="lock-closed-outline" size={18} color={AppleColors.textTertiary} />
+                                    <TextInput
+                                        style={styles.textInput}
+                                        placeholder="Enter password"
+                                        placeholderTextColor={AppleColors.textTertiary}
+                                        value={password}
+                                        onChangeText={setPassword}
+                                        secureTextEntry={!showPassword}
+                                        autoCapitalize="none"
+                                    />
+                                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                                        <Ionicons
+                                            name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                                            size={20}
+                                            color={AppleColors.textTertiary}
+                                        />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
+                            <AppleTouchable
+                                style={styles.submitAddBtn}
+                                onPress={handleAddAccountSubmit}
+                                disabled={authenticating}
+                                hapticStyle="medium"
+                            >
+                                {authenticating ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : (
+                                    <Text style={styles.submitAddBtnText}>Verify & Link Account</Text>
+                                )}
+                            </AppleTouchable>
+                        </View>
+                    )}
                 </TouchableOpacity>
             </TouchableOpacity>
         </Modal>
@@ -308,32 +299,27 @@ export default function AccountSwitcherModal({ visible, onClose }: AccountSwitch
 const styles = StyleSheet.create({
     backdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: 'rgba(0, 0, 0, 0.45)',
         justifyContent: 'flex-end',
     },
-    modalCardContainer: {
-        borderTopLeftRadius: 28,
-        borderTopRightRadius: 28,
-        overflow: 'hidden',
-        maxHeight: '80%',
-    },
-    modalGradient: {
-        padding: 24,
-        paddingTop: 12,
-        borderTopLeftRadius: 28,
-        borderTopRightRadius: 28,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+    modalSheet: {
+        backgroundColor: AppleColors.surface,
+        borderTopLeftRadius: 26,
+        borderTopRightRadius: 26,
+        paddingHorizontal: 22,
+        paddingBottom: 32,
+        maxHeight: '82%',
+        ...AppleShadows.floating,
     },
     dragBarContainer: {
         alignItems: 'center',
-        paddingVertical: 8,
+        paddingVertical: 10,
     },
     dragBar: {
-        width: 40,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        width: 36,
+        height: 5,
+        borderRadius: 3,
+        backgroundColor: AppleColors.borderLight,
     },
     headerRow: {
         flexDirection: 'row',
@@ -342,62 +328,71 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     headerTitle: {
-        fontSize: 20,
+        ...AppleTypography.title3,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: AppleColors.textPrimary,
     },
     closeBtn: {
         padding: 4,
     },
     scrollBody: {
-        paddingBottom: 24,
+        paddingBottom: 20,
     },
     sectionSubtitle: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: 'rgba(255, 255, 255, 0.4)',
+        ...AppleTypography.caption,
+        color: AppleColors.textTertiary,
         textTransform: 'uppercase',
         letterSpacing: 0.8,
-        marginBottom: 14,
+        marginBottom: 12,
+        fontWeight: '600',
     },
     accountCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-        borderRadius: 16,
+        backgroundColor: AppleColors.surfaceSecondary,
+        borderRadius: 18,
         padding: 14,
-        marginBottom: 12,
+        marginBottom: 10,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        borderColor: AppleColors.borderLight,
     },
     activeAccountCard: {
-        backgroundColor: 'rgba(168, 85, 247, 0.15)',
-        borderColor: 'rgba(168, 85, 247, 0.4)',
+        backgroundColor: AppleColors.primaryLight,
+        borderColor: 'rgba(0, 122, 255, 0.3)',
     },
     avatarCircle: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#A855F7',
+        backgroundColor: AppleColors.primary,
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 14,
     },
+    avatarImg: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 22,
+    },
     avatarText: {
         fontSize: 18,
-        fontWeight: '800',
+        fontWeight: '700',
         color: '#FFFFFF',
     },
     accountInfo: {
         flex: 1,
     },
+    nameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
     studentName: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#FFFFFF',
+        ...AppleTypography.headline,
+        color: AppleColors.textPrimary,
     },
     activeTag: {
-        backgroundColor: '#A855F7',
+        backgroundColor: AppleColors.primary,
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 6,
@@ -408,15 +403,15 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
     },
     studentDetails: {
-        fontSize: 12,
-        color: 'rgba(255, 255, 255, 0.5)',
+        ...AppleTypography.footnote,
+        color: AppleColors.textSecondary,
         marginTop: 2,
     },
     checkmarkCircle: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: '#A855F7',
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: AppleColors.primary,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -426,85 +421,84 @@ const styles = StyleSheet.create({
     addAccountBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
-        borderWidth: 1,
-        borderColor: 'rgba(168, 85, 247, 0.3)',
+        backgroundColor: AppleColors.surface,
+        borderWidth: 1.5,
+        borderColor: AppleColors.borderLight,
         borderStyle: 'dashed',
-        borderRadius: 16,
+        borderRadius: 18,
         padding: 14,
-        marginTop: 6,
+        marginTop: 8,
     },
     addIconCircle: {
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: 'rgba(168, 85, 247, 0.15)',
+        backgroundColor: AppleColors.primaryLight,
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 12,
     },
     addAccountText: {
-        fontSize: 15,
+        ...AppleTypography.callout,
         fontWeight: '600',
-        color: '#C084FC',
+        color: AppleColors.primary,
     },
-
-    // Form Styles
     formContainer: {
         paddingBottom: 24,
     },
     backToListBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        marginBottom: 16,
+        gap: 4,
+        marginBottom: 14,
     },
     backToListText: {
-        fontSize: 13,
+        ...AppleTypography.subhead,
         fontWeight: '600',
-        color: '#A855F7',
+        color: AppleColors.primary,
     },
     formInstructions: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.6)',
+        ...AppleTypography.footnote,
+        color: AppleColors.textSecondary,
         lineHeight: 18,
-        marginBottom: 20,
+        marginBottom: 18,
     },
     inputGroup: {
         marginBottom: 16,
     },
     inputLabel: {
-        fontSize: 12,
+        ...AppleTypography.subhead,
         fontWeight: '600',
-        color: 'rgba(255,255,255,0.7)',
+        color: AppleColors.textPrimary,
         marginBottom: 6,
     },
     inputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        borderRadius: 12,
+        backgroundColor: AppleColors.surfaceSecondary,
+        borderRadius: 14,
         paddingHorizontal: 14,
-        height: 48,
+        height: 50,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: AppleColors.borderLight,
     },
     textInput: {
         flex: 1,
-        color: '#FFFFFF',
-        fontSize: 14,
+        ...AppleTypography.body,
+        color: AppleColors.textPrimary,
         marginLeft: 10,
     },
     submitAddBtn: {
-        backgroundColor: '#A855F7',
-        borderRadius: 14,
-        height: 50,
+        backgroundColor: AppleColors.primary,
+        borderRadius: 16,
+        height: 52,
         alignItems: 'center',
         justifyContent: 'center',
         marginTop: 12,
+        ...AppleShadows.subtle,
     },
     submitAddBtnText: {
-        fontSize: 15,
+        ...AppleTypography.headline,
         fontWeight: '700',
         color: '#FFFFFF',
     },
