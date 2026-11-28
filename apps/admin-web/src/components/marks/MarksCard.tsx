@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { usePhotoLightbox } from '../../context/PhotoLightboxContext';
 import { Edit2, Save, X, Printer } from 'lucide-react';
 
 const formatExamName = (name: string) => {
@@ -11,6 +12,7 @@ interface MarksCardProps {
     studentId: string;
     examId: string;
     onClose: () => void;
+    onUpdate?: () => void;
 }
 
 interface SubjectMark {
@@ -22,7 +24,8 @@ interface SubjectMark {
     grade: string;
 }
 
-export function MarksCard({ studentId, examId, onClose }: MarksCardProps) {
+export function MarksCard({ studentId, examId, onClose, onUpdate }: MarksCardProps) {
+    const { openPhoto } = usePhotoLightbox();
     const [student, setStudent] = useState<any>(null);
     const [exam, setExam] = useState<any>(null);
     const [marks, setMarks] = useState<SubjectMark[]>([]);
@@ -169,6 +172,9 @@ export function MarksCard({ studentId, examId, onClose }: MarksCardProps) {
             setIsEditing(false);
             setEditedMarks({});
             await fetchMarksCardData(); // Refresh data
+            if (onUpdate) {
+                onUpdate();
+            }
         } catch (error) {
             console.error('Failed to save marks:', error);
             alert('Failed to save updated marks');
@@ -388,10 +394,20 @@ export function MarksCard({ studentId, examId, onClose }: MarksCardProps) {
                     }}
                 >
                     <div
+                        onClick={() => {
+                            if (student) {
+                                openPhoto({
+                                    photoUrl: student.photo_url,
+                                    title: student.full_name,
+                                    subtitle: `${student.registration_number || ''} • ${student.classes?.class_name || ''}`,
+                                    badge: student.classes?.section ? `Section ${student.classes.section}` : undefined
+                                });
+                            }
+                        }}
                         style={{
                             width: '100px',
                             height: '100px',
-                            borderRadius: '12px',
+                            borderRadius: '16px',
                             background: student?.photo_url
                                 ? `url(${student.photo_url}) center/cover`
                                 : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -402,7 +418,12 @@ export function MarksCard({ studentId, examId, onClose }: MarksCardProps) {
                             color: '#fff',
                             fontSize: '40px',
                             fontWeight: '700',
+                            cursor: 'pointer',
+                            transition: 'transform 0.15s',
                         }}
+                        title="Click to view full photo (WhatsApp style)"
+                        onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                     >
                         {!student?.photo_url && student?.full_name?.charAt(0).toUpperCase()}
                     </div>

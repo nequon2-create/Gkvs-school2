@@ -5,6 +5,7 @@ interface ExamDetailsModalProps {
     examId: string;
     onClose: () => void;
     onUpdate: () => void;
+    onEdit?: () => void;
 }
 
 interface ExamSchedule {
@@ -13,7 +14,7 @@ interface ExamSchedule {
     exam_time: string;
 }
 
-export function ExamDetailsModal({ examId, onClose, onUpdate }: ExamDetailsModalProps) {
+export function ExamDetailsModal({ examId, onClose, onUpdate, onEdit }: ExamDetailsModalProps) {
     const [exam, setExam] = useState<any>(null);
     const [schedules, setSchedules] = useState<ExamSchedule[]>([]);
     const [loading, setLoading] = useState(true);
@@ -344,6 +345,27 @@ export function ExamDetailsModal({ examId, onClose, onUpdate }: ExamDetailsModal
                     >
                         Close
                     </button>
+                    {onEdit && (
+                        <button
+                            onClick={() => {
+                                onClose();
+                                onEdit();
+                            }}
+                            style={{
+                                flex: 1.2,
+                                padding: '14px',
+                                background: '#F5F5F7',
+                                border: '1px solid rgba(0,0,0,0.1)',
+                                borderRadius: '12px',
+                                fontSize: '15px',
+                                fontWeight: '600',
+                                color: '#0071E3',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            ✏️ Edit Timetable
+                        </button>
+                    )}
                     <button
                         onClick={handleDelete}
                         style={{
@@ -363,7 +385,7 @@ export function ExamDetailsModal({ examId, onClose, onUpdate }: ExamDetailsModal
                     <button
                         onClick={handlePrint}
                         style={{
-                            flex: 1,
+                            flex: 1.2,
                             padding: '14px',
                             background: '#0071E3',
                             color: '#fff',

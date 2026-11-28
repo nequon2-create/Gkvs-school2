@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { usePhotoLightbox } from '../context/PhotoLightboxContext';
 import {
     XAxis,
     YAxis,
@@ -65,6 +66,7 @@ interface EnrollmentHistory {
 export function StudentProfilePage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { openPhoto } = usePhotoLightbox();
 
     const [student, setStudent] = useState<Student | null>(null);
     const [marks, setMarks] = useState<Mark[]>([]);
@@ -388,6 +390,16 @@ export function StudentProfilePage() {
             {/* Profile Photo & Name */}
             <div style={{ textAlign: 'center', padding: '20px' }}>
                 <div
+                    onClick={() => {
+                        if (student) {
+                            openPhoto({
+                                photoUrl: student.photo_url,
+                                title: student.full_name,
+                                subtitle: `${student.registration_number} • ${student.classes?.class_name || ''}`,
+                                badge: student.gender || undefined
+                            });
+                        }
+                    }}
                     style={{
                         width: '120px',
                         height: '120px',
@@ -403,7 +415,13 @@ export function StudentProfilePage() {
                         color: '#fff',
                         fontSize: '48px',
                         fontWeight: '700',
+                        cursor: 'pointer',
+                        transition: 'transform 0.15s, box-shadow 0.15s',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.15)'
                     }}
+                    title="Click to view full photo (WhatsApp style)"
+                    onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                 >
                     {!student.photo_url && student.full_name.charAt(0).toUpperCase()}
                 </div>

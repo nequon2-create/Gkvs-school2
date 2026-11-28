@@ -104,10 +104,14 @@ export default function ParentHomeworkScreen({ navigation }: any) {
     const fetchHomework = async () => {
         try {
             if (user?.class_id) {
+                // 48-hour auto-removal filter
+                const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+
                 const { data: hwData } = await supabase
                     .from('homework')
                     .select('*, teachers(id, full_name, photo_url, subjects)')
                     .eq('class_id', user.class_id)
+                    .gte('created_at', fortyEightHoursAgo)
                     .order('created_at', { ascending: false });
                 
                 // Filter homework based on individual target student_ids

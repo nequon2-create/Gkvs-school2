@@ -17,6 +17,7 @@ export default function ReceiptsScreen() {
     
     // Fallback: If studentId is not in route params, fetch using the logged-in student's id
     const studentId = route.params?.studentId ?? user?.id;
+    const filterItemType = route.params?.itemType;
 
     const [loading, setLoading] = useState(true);
     const [receipts, setReceipts] = useState<FeeReceipt[]>([]);
@@ -27,11 +28,18 @@ export default function ReceiptsScreen() {
             return;
         }
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('fee_receipts')
                 .select('*')
                 .eq('student_id', studentId)
+                .or('is_cancelled.is.null,is_cancelled.eq.false')
                 .order('receipt_date', { ascending: false });
+
+            if (filterItemType) {
+                query = query.eq('item_type', filterItemType);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
             setReceipts(data || []);

@@ -56,6 +56,7 @@ export function AppleDatePicker({
     const [selectedDay, setSelectedDay] = useState(initialParsed.day);
     const [selectedMonth, setSelectedMonth] = useState(initialParsed.month);
     const [selectedYear, setSelectedYear] = useState(initialParsed.year);
+    const [yearInput, setYearInput] = useState(String(initialParsed.year));
 
     // Sync with external value changes
     useEffect(() => {
@@ -64,6 +65,7 @@ export function AppleDatePicker({
             setSelectedDay(p.day);
             setSelectedMonth(p.month);
             setSelectedYear(p.year);
+            setYearInput(String(p.year));
         }
     }, [value]);
 
@@ -105,6 +107,37 @@ export function AppleDatePicker({
         setIsOpen(false);
     };
 
+    const handleYearType = (raw: string) => {
+        // Only allow digits up to 4 characters
+        const cleaned = raw.replace(/[^0-9]/g, '').slice(0, 4);
+        setYearInput(cleaned);
+
+        if (cleaned.length === 4) {
+            const parsedY = parseInt(cleaned, 10);
+            if (!isNaN(parsedY) && parsedY >= minYear && parsedY <= maxYear) {
+                setSelectedYear(parsedY);
+                const validDay = Math.min(selectedDay, getDaysInMonth(parsedY, selectedMonth));
+                const monthStr = String(selectedMonth + 1).padStart(2, '0');
+                const dayStr = String(validDay).padStart(2, '0');
+                onChange(`${parsedY}-${monthStr}-${dayStr}`);
+            }
+        }
+    };
+
+    const handleYearBlur = () => {
+        const parsedY = parseInt(yearInput, 10);
+        if (isNaN(parsedY) || parsedY < minYear || parsedY > maxYear) {
+            // Restore previous valid selectedYear without resetting to 1!
+            setYearInput(String(selectedYear));
+        } else {
+            setSelectedYear(parsedY);
+            const validDay = Math.min(selectedDay, getDaysInMonth(parsedY, selectedMonth));
+            const monthStr = String(selectedMonth + 1).padStart(2, '0');
+            const dayStr = String(validDay).padStart(2, '0');
+            onChange(`${parsedY}-${monthStr}-${dayStr}`);
+        }
+    };
+
     const formatDisplay = (val: string) => {
         if (!val) return 'Select Date of Birth';
         try {
@@ -144,7 +177,29 @@ export function AppleDatePicker({
             {isOpen && (
                 <div className="apple-wheel-popover animate-scale-in">
                     <div className="apple-wheel-header">
-                        <span className="apple-wheel-title">Date of Birth</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="apple-wheel-title">Date of Birth</span>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', background: '#F1F5F9', borderRadius: '8px', padding: '2px 8px' }}>
+                                <span style={{ fontSize: '11px', color: '#64748B', marginRight: '4px' }}>Year:</span>
+                                <input
+                                    type="text"
+                                    value={yearInput}
+                                    placeholder="YYYY"
+                                    onChange={(e) => handleYearType(e.target.value)}
+                                    onBlur={handleYearBlur}
+                                    style={{
+                                        width: '48px',
+                                        border: 'none',
+                                        background: 'transparent',
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                        color: '#0F172A',
+                                        outline: 'none',
+                                        padding: 0
+                                    }}
+                                />
+                            </div>
+                        </div>
                         <button
                             type="button"
                             className="apple-wheel-done-btn"
@@ -211,6 +266,7 @@ export function AppleDatePicker({
                                         className={`apple-wheel-item ${y === selectedYear ? 'selected' : ''}`}
                                         onClick={() => {
                                             setSelectedYear(y);
+                                            setYearInput(String(y));
                                             const validDay = Math.min(selectedDay, getDaysInMonth(y, selectedMonth));
                                             const monthStr = String(selectedMonth + 1).padStart(2, '0');
                                             const dayStr = String(validDay).padStart(2, '0');
@@ -225,7 +281,7 @@ export function AppleDatePicker({
                     </div>
 
                     <div className="apple-wheel-footer">
-                        <span className="apple-wheel-hint">Click or scroll any column to adjust date</span>
+                        <span className="apple-wheel-hint">Click, scroll, or type year above to set date</span>
                     </div>
                 </div>
             )}

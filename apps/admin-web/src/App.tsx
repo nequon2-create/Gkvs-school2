@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { PhotoLightboxProvider } from './context/PhotoLightboxContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 // Lazy-load all pages so the browser only downloads the code for the page being visited
@@ -52,9 +53,10 @@ const PageLoader = () => (
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
+      <PhotoLightboxProvider>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignUpPage />} />
 
@@ -106,7 +108,8 @@ function App() {
           </Routes>
         </Suspense>
       </BrowserRouter>
-    </AuthProvider>
+    </PhotoLightboxProvider>
+  </AuthProvider>
   );
 }
 

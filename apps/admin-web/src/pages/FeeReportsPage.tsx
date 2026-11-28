@@ -259,8 +259,9 @@ Thank you.`;
         try {
             const { data } = await supabase
                 .from('fee_receipts')
-                .select('id, receipt_number, receipt_date, amount_paid, payment_mode')
+                .select('id, receipt_number, receipt_date, amount_paid, payment_mode, is_cancelled')
                 .eq('student_id', student.student_id)
+                .or('is_cancelled.is.null,is_cancelled.eq.false')
                 .order('receipt_date', { ascending: false });
             setPaymentHistory(data || []);
         } catch (e) {
@@ -535,7 +536,15 @@ Thank you.`;
                                 return (
                                     <tr key={s.student_id} className="student-report-row">
                                         <td className="student-profile-cell">
-                                            <div className="student-avatar-wrap">
+                                            <div
+                                                className="student-avatar-wrap"
+                                                data-lightbox-photo={s.photo_url || ''}
+                                                data-lightbox-title={s.full_name}
+                                                data-lightbox-subtitle={`${s.registration_number} • ${s.className}`}
+                                                data-lightbox-badge={s.parent_name ? `Parent: ${s.parent_name}` : ''}
+                                                style={{ cursor: 'pointer' }}
+                                                title="Click to view photo (WhatsApp style)"
+                                            >
                                                 {s.photo_url ? (
                                                     <img src={s.photo_url} alt={s.full_name} className="student-avatar-img" />
                                                 ) : (

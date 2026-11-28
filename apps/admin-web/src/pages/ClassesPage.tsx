@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { usePhotoLightbox } from '../context/PhotoLightboxContext';
 
 const CLASS_GRADIENTS = [
     'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -26,6 +27,7 @@ interface Student {
 
 export function ClassesPage() {
     const navigate = useNavigate();
+    const { openPhoto } = usePhotoLightbox();
     const [searchParams, setSearchParams] = useSearchParams();
     const classIdParam = searchParams.get('classId');
 
@@ -225,6 +227,15 @@ export function ClassesPage() {
                             }}
                         >
                             <div
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    openPhoto({
+                                        photoUrl: student.photo_url,
+                                        title: student.full_name,
+                                        subtitle: `Roll: ${student.roll_number || 'N/A'} • Reg: ${student.registration_number || 'N/A'}`,
+                                        badge: className || undefined
+                                    });
+                                }}
                                 style={{
                                     width: '56px',
                                     height: '56px',
@@ -239,7 +250,13 @@ export function ClassesPage() {
                                     fontSize: '24px',
                                     fontWeight: '700',
                                     border: '3px solid rgba(0,0,0,0.05)',
+                                    cursor: 'pointer',
+                                    transition: 'transform 0.15s',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                                 }}
+                                title="Click to view full photo (WhatsApp style)"
+                                onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
+                                onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                             >
                                 {!student.photo_url && student.full_name.charAt(0).toUpperCase()}
                             </div>

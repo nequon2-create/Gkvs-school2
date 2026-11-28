@@ -78,7 +78,14 @@ export default function MarksCard({ visible, studentId, examId, onClose }: Marks
             if (studentError) throw studentError;
             setStudent(studentData);
 
-            // 2. Fetch distinct exam IDs where this student has marks
+            // 2. Fetch current active academic year
+            const { data: currentYearData } = await supabase
+                .from('academic_years')
+                .select('id, year_name')
+                .eq('is_current', true)
+                .maybeSingle();
+
+            // 3. Fetch distinct exam IDs where this student has marks
             const { data: studentMarks, error: marksError } = await supabase
                 .from('marks')
                 .select('exam_id')
@@ -89,12 +96,19 @@ export default function MarksCard({ visible, studentId, examId, onClose }: Marks
             const examIds = Array.from(new Set((studentMarks || []).map(m => m.exam_id).filter(Boolean)));
 
             if (examIds.length > 0) {
-                // 3. Fetch exam details for all these exams, ordered by date descending
-                const { data: examsData, error: examsError } = await supabase
+                // Fetch exam details for all these exams, ordered by date descending
+                let examsQuery = supabase
                     .from('exams')
-                    .select('id, exam_name, exam_type, exam_date, is_published')
+                    .select('id, exam_name, exam_type, exam_date, is_published, academic_year_id')
                     .in('id', examIds)
                     .order('exam_date', { ascending: false });
+
+                // Restrict to current active academic year
+                if (currentYearData?.id) {
+                    examsQuery = examsQuery.eq('academic_year_id', currentYearData.id);
+                }
+
+                const { data: examsData, error: examsError } = await examsQuery;
 
                 if (examsError) throw examsError;
 

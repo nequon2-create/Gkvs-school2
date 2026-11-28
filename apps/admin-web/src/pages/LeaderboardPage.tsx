@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Trophy, ChevronLeft, Volume2, BookOpen, BarChart2, User, Settings, RefreshCw } from 'lucide-react';
 import { playFlipSound, playCardOpenSound } from '../utils/audio';
+import { usePhotoLightbox } from '../context/PhotoLightboxContext';
 import hackerCardImg from '../assets/hacker_card.png';
 import './LeaderboardPage.css';
 
@@ -29,6 +30,32 @@ interface SchoolClass {
     id: string;
     class_name: string;
     section: string | null;
+    numeric_value?: number | null;
+}
+
+export function getClassSortOrder(className: string, numericVal?: number | null): number {
+    const raw = (className || '').trim().toLowerCase();
+    
+    // Playgroup / Nursery / Pre-KG
+    if (raw.includes('pre-kg') || raw.includes('prekg') || raw.includes('nursery') || raw.includes('play')) return -2;
+    
+    // LKG (Lower Kindergarten)
+    if (raw.includes('lkg') || raw.includes('l.k.g') || raw.includes('lower kg')) return -1;
+    
+    // UKG (Upper Kindergarten)
+    if (raw.includes('ukg') || raw.includes('u.k.g') || raw.includes('upper kg')) return 0;
+    
+    // Check for standard class numbers (e.g. "1st Class", "1 Class", "Class 1", "Grade 1", "10th Class")
+    const match = raw.match(/(\d+)/);
+    if (match) {
+        return parseInt(match[1], 10);
+    }
+    
+    if (numericVal !== null && numericVal !== undefined && !isNaN(numericVal)) {
+        return numericVal;
+    }
+    
+    return 999;
 }
 
 interface Exam {
@@ -39,6 +66,7 @@ interface Exam {
 
 export function LeaderboardPage() {
     const navigate = useNavigate();
+    const { openPhoto } = usePhotoLightbox();
     const [classes, setClasses] = useState<SchoolClass[]>([]);
     const [selectedClass, setSelectedClass] = useState<SchoolClass | null>(null);
     const [activeExam, setActiveExam] = useState<Exam | null>(null);
@@ -69,16 +97,23 @@ export function LeaderboardPage() {
             // Fetch classes for this year
             let query = supabase
                 .from('classes')
-                .select('id, class_name, section');
+                .select('id, class_name, section, numeric_value');
 
             if (yearId) {
                 query = query.eq('academic_year_id', yearId);
             }
 
-            const { data, error } = await query.order('class_name');
+            const { data, error } = await query;
             if (error) throw error;
             if (data) {
-                setClasses(data);
+                // Strict educational order: LKG, UKG, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+                const sorted = [...data].sort((a: any, b: any) => {
+                    const orderA = getClassSortOrder(a.class_name, a.numeric_value);
+                    const orderB = getClassSortOrder(b.class_name, b.numeric_value);
+                    if (orderA !== orderB) return orderA - orderB;
+                    return (a.class_name || '').localeCompare(b.class_name || '', undefined, { numeric: true });
+                });
+                setClasses(sorted);
             }
         } catch (error) {
             console.error('Error fetching classes:', error);
@@ -318,15 +353,35 @@ export function LeaderboardPage() {
                         SELECT A CLASS ZONE
                     </h2>
                     <div className="class-grid">
-                        {classes.map((cls) => (
-                            <div key={cls.id} className="cyber-class-card" onClick={() => handleClassSelect(cls)}>
-                                <div className="class-icon-container">
-                                    <BookOpen size={30} className="class-icon-svg" />
+                        {classes.map((cls) => {
+                            const sortNum = getClassSortOrder(cls.class_name, cls.numeric_value);
+                            const badgeLabel = sortNum === -2 ? 'PRE-KG' : sortNum === -1 ? 'LKG' : sortNum === 0 ? 'UKG' : sortNum > 0 && sortNum < 900 ? `CLASS ${sortNum}` : 'CLASS';
+
+                            return (
+                                <div key={cls.id} className="cyber-class-card" onClick={() => handleClassSelect(cls)}>
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '14px',
+                                        right: '16px',
+                                        background: 'rgba(255, 255, 255, 0.12)',
+                                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                                        borderRadius: '12px',
+                                        padding: '3px 10px',
+                                        fontSize: '11px',
+                                        fontWeight: '700',
+                                        color: '#00f2fe',
+                                        letterSpacing: '0.5px'
+                                    }}>
+                                        {badgeLabel}
+                                    </div>
+                                    <div className="class-icon-container">
+                                        <BookOpen size={30} className="class-icon-svg" />
+                                    </div>
+                                    <h3 className="class-title">{cls.class_name}</h3>
+                                    <p className="class-subtitle">{cls.section ? `Section: ${cls.section}` : 'Standard Class'}</p>
                                 </div>
-                                <h3 className="class-title">{cls.class_name}</h3>
-                                <p className="class-subtitle">{cls.section ? `Section: ${cls.section}` : 'Standard Class'}</p>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             )}
@@ -446,7 +501,20 @@ export function LeaderboardPage() {
                                             </div>
 
                                             {/* Column 2: Student Pic Box */}
-                                            <div className="row-photo-col">
+                                            <div
+                                                className="row-photo-col"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openPhoto({
+                                                        photoUrl: student.photo_url,
+                                                        title: student.full_name,
+                                                        subtitle: `Rank #${student.rank} • Overall Avg: ${student.avgMarks}%`,
+                                                        badge: `${selectedClass?.class_name || 'Class'}`
+                                                    });
+                                                }}
+                                                style={{ cursor: 'pointer' }}
+                                                title="Click to view full photo (WhatsApp style)"
+                                            >
                                                 {isGold && (
                                                     <div className="photo-crown-wrapper">
                                                         <svg className="photo-crown-svg" viewBox="0 0 100 100" width="20" height="16">
@@ -454,7 +522,7 @@ export function LeaderboardPage() {
                                                         </svg>
                                                     </div>
                                                 )}
-                                                <div className="row-photo-frame">
+                                                <div className="row-photo-frame" style={{ cursor: 'pointer', transition: 'transform 0.2s' }}>
                                                     {student.photo_url ? (
                                                         <img src={student.photo_url} alt={student.full_name} className="row-photo-img" />
                                                     ) : (
@@ -552,8 +620,21 @@ export function LeaderboardPage() {
                                     {/* Background image layer — filter applied here only, not to photo */}
                                     <div className="card-bg-image" style={{ backgroundImage: `url(${hackerCardImg})` }} />
                                     {/* Portrait Frame */}
-                                    <div className="hacker-portrait-container">
-                                        <div className="hacker-tag-circuit">CIRCUIT</div>
+                                    <div
+                                        className="hacker-portrait-container"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            openPhoto({
+                                                photoUrl: selectedStudent.photo_url,
+                                                title: selectedStudent.full_name,
+                                                subtitle: `Rank #${selectedStudent.rank} • Avg: ${selectedStudent.avgMarks}%`,
+                                                badge: `${selectedClass?.class_name || 'Class'}`
+                                            });
+                                        }}
+                                        style={{ cursor: 'pointer' }}
+                                        title="Click to view full photo (WhatsApp style)"
+                                    >
+                                        <div className="hacker-tag-circuit">VIEW PHOTO</div>
                                         {selectedStudent.photo_url ? (
                                             <img src={selectedStudent.photo_url} alt={selectedStudent.full_name} className="hacker-portrait-img" />
                                         ) : (

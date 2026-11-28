@@ -4,8 +4,11 @@ import { supabase } from '../lib/supabase';
 import {
     ChevronLeft,
     Printer,
-    Edit3,
-    Search
+    Search,
+    AlertCircle,
+    CheckCircle2,
+    Layers,
+    Package
 } from 'lucide-react';
 import './CreateReceiptPage.css';
 
@@ -15,9 +18,11 @@ interface StudentData {
     full_name: string;
     parent_name: string;
     class_name: string;
+    class_id?: string;
     section: string;
     roll_number: string;
     academic_year_id: string;
+    academic_year_name?: string;
 }
 
 interface FeeItem {
@@ -27,9 +32,21 @@ interface FeeItem {
     amount: number;
 }
 
+const ANCILLARY_OPTIONS = [
+    { key: 'uniform', label_en: 'School Dress / Uniform', label_kn: 'ಶಾಲಾ ಸಮವಸ್ತ್ರ ಶುಲ್ಕ' },
+    { key: 'books', label_en: 'Books Fee', label_kn: 'ಪುಸ್ತಕಗಳ ಶುಲ್ಕ' },
+    { key: 'van', label_en: 'Van / Transport Fee', label_kn: 'ವಾಹನ / ಸಾರಿಗೆ ಶುಲ್ಕ' },
+    { key: 'tie_belt', label_en: 'Tie & Belt Fee', label_kn: 'ಟೈ ಮತ್ತು ಬೆಲ್ಟ್ ಶುಲ್ಕ' },
+    { key: 'shoes', label_en: 'Shoes Fee', label_kn: 'ಶೂಸ್ / ಪಾದರಕ್ಷೆ ಶುಲ್ಕ' },
+];
+
 export function CreateReceiptPage() {
     const navigate = useNavigate();
     const [saving, setSaving] = useState(false);
+
+    // Receipt Type: 'academic' vs 'item'
+    const [receiptType, setReceiptType] = useState<'academic' | 'item'>('academic');
+    const [selectedItemType, setSelectedItemType] = useState<string>('uniform');
 
     // Receipt Metadata
     const [receiptNumber, setReceiptNumber] = useState('');
@@ -43,10 +60,18 @@ export function CreateReceiptPage() {
         class_name: '',
         section: '',
         roll_number: '',
-        academic_year_id: ''
+        academic_year_id: '',
+        academic_year_name: ''
     });
 
-    // 13 Fee Categories matching the physical receipt
+    // Student Outstanding Balances
+    const [balanceInfo, setBalanceInfo] = useState<{
+        totalAmount: number;
+        amountPaid: number;
+        amountPending: number;
+    }>({ totalAmount: 0, amountPaid: 0, amountPending: 0 });
+
+    // 13 Academic Fee Categories
     const [feeItems, setFeeItems] = useState<FeeItem[]>([
         { id: 1, label_kn: 'ಪ್ರವೇಶ/ಪುನಃ ಪ್ರವೇಶ', label_en: 'Admn. / Re-Admn. Fee', amount: 0 },
         { id: 2, label_kn: 'ಬೋಧನಾ ಶುಲ್ಕ', label_en: 'Tuition Fee', amount: 0 },
@@ -63,6 +88,9 @@ export function CreateReceiptPage() {
         { id: 13, label_kn: 'ಇತರೆ', label_en: 'Others', amount: 0 }
     ]);
 
+    // Item Fee amount for 'item' receipt mode
+    const [itemAmount, setItemAmount] = useState<number>(0);
+
     const [amountPaid, setAmountPaid] = useState<number>(0);
     const [rupeesInWords, setRupeesInWords] = useState('');
     const [paymentMode, setPaymentMode] = useState('Cash');
@@ -71,19 +99,65 @@ export function CreateReceiptPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
 
-    useEffect(() => {
-        fetchLastReceiptNumber();
-        fetchCurrentAcademicYear();
-    }, []);
+    // Apple-Style Big Status Alert Modal
+    const [alertModal, setAlertModal] = useState<{
+        isOpen: boolean;
+        type: 'error' | 'success';
+        title: string;
+        message: string;
+        details?: string;
+    }>({
+        isOpen: false,
+        type: 'error',
+        title: '',
+        message: ''
+    });
 
-    const fetchLastReceiptNumber = async () => {
-        const { count } = await supabase.from('fee_receipts').select('*', { count: 'exact', head: true });
-        setReceiptNumber(((count || 0) + 1).toString().padStart(4, '0'));
+    useEffect(() => {
+        fetchReceiptNumber();
+        fetchCurrentAcademicYear();
+    }, [receiptType]);
+
+    useEffect(() => {
+        if (studentInfo.id) {
+            fetchStudentBalances(studentInfo.id, studentInfo.academic_year_id);
+        }
+    }, [receiptType, selectedItemType]);
+
+    const fetchReceiptNumber = async () => {
+        try {
+            if (receiptType === 'academic') {
+                const { count } = await supabase
+                    .from('fee_receipts')
+                    .select('*', { count: 'exact', head: true })
+                    .or('receipt_type.eq.academic,receipt_type.is.null');
+                setReceiptNumber(((count || 0) + 1).toString().padStart(4, '0'));
+            } else {
+                const { count } = await supabase
+                    .from('fee_receipts')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('receipt_type', 'item');
+                setReceiptNumber(((count || 0) + 1).toString());
+            }
+        } catch {
+            setReceiptNumber('1');
+        }
     };
 
     const fetchCurrentAcademicYear = async () => {
-        const { data } = await supabase.from('academic_years').select('id').eq('is_current', true).single();
-        if (data) setStudentInfo(prev => ({ ...prev, academic_year_id: data.id }));
+        const { data } = await supabase
+            .from('academic_years')
+            .select('id, year_name')
+            .eq('is_current', true)
+            .single();
+
+        if (data) {
+            setStudentInfo(prev => ({
+                ...prev,
+                academic_year_id: data.id,
+                academic_year_name: data.year_name
+            }));
+        }
     };
 
     const searchStudents = async (query: string) => {
@@ -93,120 +167,81 @@ export function CreateReceiptPage() {
         }
         const { data } = await supabase
             .from('students')
-            .select('*, classes(class_name, section), academic_years(id)')
+            .select('*, classes(id, class_name, section), academic_years(id, year_name)')
             .or(`registration_number.ilike.%${query}%,full_name.ilike.%${query}%`)
             .limit(5);
         setSearchResults(data || []);
     };
 
-    const fetchStudentFeesForReceipt = async (studentId: string, classId: string, academicYearId: string) => {
+    const fetchStudentBalances = async (studentId: string, academicYearId: string) => {
         try {
-            // 1. Try to fetch custom student fees
-            const { data: sfData, error: sfErr } = await supabase
-                .from('student_fees')
-                .select('*')
-                .eq('student_id', studentId)
-                .eq('academic_year_id', academicYearId)
-                .maybeSingle();
-
-            if (sfErr) throw sfErr;
-
-            // Check if student has a populated custom breakdown
-            const hasBreakdown = sfData && (
-                Number(sfData.admission_fee) > 0 ||
-                Number(sfData.tuition_fee) > 0 ||
-                Number(sfData.betterment_fee) > 0 ||
-                Number(sfData.sports_fee) > 0 ||
-                Number(sfData.reading_room_fee) > 0 ||
-                Number(sfData.medical_fee) > 0 ||
-                Number(sfData.laboratory_fee) > 0 ||
-                Number(sfData.ave_fee) > 0 ||
-                Number(sfData.swf) > 0 ||
-                Number(sfData.tbf) > 0 ||
-                Number(sfData.examination_fee) > 0 ||
-                Number(sfData.fines) > 0 ||
-                Number(sfData.others) > 0
-            );
-
-            if (hasBreakdown) {
-                // Pre-populate with student custom fees
-                const items = [
-                    { id: 1, label_kn: 'ಪ್ರವೇಶ/ಪುನಃ ಪ್ರವೇಶ', label_en: 'Admn. / Re-Admn. Fee', amount: Number(sfData.admission_fee) || 0 },
-                    { id: 2, label_kn: 'ಬೋಧನಾ ಶುಲ್ಕ', label_en: 'Tuition Fee', amount: Number(sfData.tuition_fee) || 0 },
-                    { id: 3, label_kn: 'ಅಭಿವೃದ್ಧಿ ಶುಲ್ಕ', label_en: 'Betterment Fee', amount: Number(sfData.betterment_fee) || 0 },
-                    { id: 4, label_kn: 'ಕ್ರೀಡಾ ಶುಲ್ಕ', label_en: 'Sports Fee', amount: Number(sfData.sports_fee) || 0 },
-                    { id: 5, label_kn: 'ವಾಚನಾಲಯ ಶುಲ್ಕ', label_en: 'Reading Room Fee', amount: Number(sfData.reading_room_fee) || 0 },
-                    { id: 6, label_kn: 'ವೈದ್ಯಕೀಯ ಶುಲ್ಕ', label_en: 'Medical Fee', amount: Number(sfData.medical_fee) || 0 },
-                    { id: 7, label_kn: 'ಪ್ರಯೋಗಶಾಲಾ ಶುಲ್ಕ', label_en: 'Laboratory Fee', amount: Number(sfData.laboratory_fee) || 0 },
-                    { id: 8, label_kn: 'ಶ್ರವಣ-ದೃಶ್ಯ ಶಿಕ್ಷಣ ಶುಲ್ಕ', label_en: 'AVE Fee', amount: Number(sfData.ave_fee) || 0 },
-                    { id: 9, label_kn: 'ವಿದ್ಯಾರ್ಥಿ ಕ್ಷೇಮಾಭಿವೃದ್ಧಿ ನಿಧಿ', label_en: 'SWF', amount: Number(sfData.swf) || 0 },
-                    { id: 10, label_kn: 'ಉಪಾಧ್ಯಾಯರ ಕಲ್ಯಾಣ ನಿಧಿ', label_en: 'TBF', amount: Number(sfData.tbf) || 0 },
-                    { id: 11, label_kn: 'ಪರೀಕ್ಷಾ ಶುಲ್ಕ', label_en: 'Examination Fee', amount: Number(sfData.examination_fee) || 0 },
-                    { id: 12, label_kn: 'ದಂಡ', label_en: 'Fines', amount: Number(sfData.fines) || 0 },
-                    { id: 13, label_kn: 'ಇತರೆ', label_en: 'Others', amount: Number(sfData.others) || 0 }
-                ];
-                setFeeItems(items);
-                return;
-            }
-
-            // 2. If no custom student fees breakdown, fetch class defaults
-            if (classId) {
-                const { data: cfData, error: cfErr } = await supabase
-                    .from('class_fees')
-                    .select('*')
-                    .eq('class_id', classId)
+            if (receiptType === 'academic') {
+                const { data } = await supabase
+                    .from('student_fees')
+                    .select('total_amount, amount_paid, amount_pending')
+                    .eq('student_id', studentId)
                     .eq('academic_year_id', academicYearId)
                     .maybeSingle();
 
-                if (cfErr) throw cfErr;
+                if (data) {
+                    setBalanceInfo({
+                        totalAmount: Number(data.total_amount) || 0,
+                        amountPaid: Number(data.amount_paid) || 0,
+                        amountPending: Number(data.amount_pending) || 0
+                    });
+                } else {
+                    setBalanceInfo({ totalAmount: 0, amountPaid: 0, amountPending: 0 });
+                }
+            } else {
+                const { data } = await supabase
+                    .from('student_item_fees')
+                    .select('amount_total, amount_paid, amount_pending')
+                    .eq('student_id', studentId)
+                    .eq('academic_year_id', academicYearId)
+                    .eq('item_type', selectedItemType)
+                    .maybeSingle();
 
-                if (cfData) {
-                    const items = [
-                        { id: 1, label_kn: 'ಪ್ರವೇಶ/ಪುನಃ ಪ್ರವೇಶ', label_en: 'Admn. / Re-Admn. Fee', amount: Number(cfData.admission_fee) || 0 },
-                        { id: 2, label_kn: 'ಬೋಧನಾ ಶುಲ್ಕ', label_en: 'Tuition Fee', amount: Number(cfData.tuition_fee) || 0 },
-                        { id: 3, label_kn: 'ಅಭಿವೃದ್ಧಿ ಶುಲ್ಕ', label_en: 'Betterment Fee', amount: Number(cfData.betterment_fee) || 0 },
-                        { id: 4, label_kn: 'ಕ್ರೀಡಾ ಶುಲ್ಕ', label_en: 'Sports Fee', amount: Number(cfData.sports_fee) || 0 },
-                        { id: 5, label_kn: 'ವಾಚನಾಲಯ ಶುಲ್ಕ', label_en: 'Reading Room Fee', amount: Number(cfData.reading_room_fee) || 0 },
-                        { id: 6, label_kn: 'ವೈದ್ಯಕೀಯ ಶುಲ್ಕ', label_en: 'Medical Fee', amount: Number(cfData.medical_fee) || 0 },
-                        { id: 7, label_kn: 'ಪ್ರಯೋಗಶಾಲಾ ಶುಲ್ಕ', label_en: 'Laboratory Fee', amount: Number(cfData.laboratory_fee) || 0 },
-                        { id: 8, label_kn: 'ಶ್ರವಣ-ದೃಶ್ಯ ಶಿಕ್ಷಣ ಶುಲ್ಕ', label_en: 'AVE Fee', amount: Number(cfData.ave_fee) || 0 },
-                        { id: 9, label_kn: 'ವಿದ್ಯಾರ್ಥಿ ಕ್ಷೇಮಾಭಿವೃದ್ಧಿ ನಿಧಿ', label_en: 'SWF', amount: Number(cfData.swf) || 0 },
-                        { id: 10, label_kn: 'ಉಪಾಧ್ಯಾಯರ ಕಲ್ಯಾಣ ನಿಧಿ', label_en: 'TBF', amount: Number(cfData.tbf) || 0 },
-                        { id: 11, label_kn: 'ಪರೀಕ್ಷಾ ಶುಲ್ಕ', label_en: 'Examination Fee', amount: Number(cfData.examination_fee) || 0 },
-                        { id: 12, label_kn: 'ದಂಡ', label_en: 'Fines', amount: Number(cfData.fines) || 0 },
-                        { id: 13, label_kn: 'ಇತರೆ', label_en: 'Others', amount: Number(cfData.others) || 0 }
-                    ];
-                    setFeeItems(items);
-                    return;
+                if (data) {
+                    setBalanceInfo({
+                        totalAmount: Number(data.amount_total) || 0,
+                        amountPaid: Number(data.amount_paid) || 0,
+                        amountPending: Number(data.amount_pending) || 0
+                    });
+                    setItemAmount(Number(data.amount_pending) || Number(data.amount_total) || 0);
+                    setAmountPaid(Number(data.amount_pending) || Number(data.amount_total) || 0);
+                } else {
+                    // Try class fallback
+                    setBalanceInfo({ totalAmount: 0, amountPaid: 0, amountPending: 0 });
+                    setItemAmount(0);
+                    setAmountPaid(0);
                 }
             }
-
-            // 3. Fallback: reset all to 0
-            const resetItems = feeItems.map(item => ({ ...item, amount: 0 }));
-            setFeeItems(resetItems);
-        } catch (error) {
-            console.error('Error fetching student fees for receipt:', error);
-            // Fallback reset
-            const resetItems = feeItems.map(item => ({ ...item, amount: 0 }));
-            setFeeItems(resetItems);
+        } catch (err) {
+            console.error('Error fetching student balance:', err);
         }
     };
 
     const handleSelectStudent = (student: any) => {
-        const acadYearId = student.academic_year_id || studentInfo.academic_year_id;
+        const cls = student.classes;
+        const year = student.academic_years;
+
         setStudentInfo({
             id: student.id,
             registration_number: student.registration_number || '',
             full_name: student.full_name || '',
             parent_name: student.parent_name || '',
-            class_name: student.classes?.class_name || '',
-            section: student.classes?.section || '',
-            roll_number: student.roll_number || '',
-            academic_year_id: acadYearId
+            class_name: cls?.class_name || '',
+            class_id: cls?.id || student.class_id,
+            section: cls?.section || '',
+            roll_number: student.roll_number?.toString() || '',
+            academic_year_id: year?.id || student.academic_year_id,
+            academic_year_name: year?.year_name || studentInfo.academic_year_name
         });
-        setSearchQuery('');
+
         setSearchResults([]);
-        fetchStudentFeesForReceipt(student.id, student.class_id, acadYearId);
+        setSearchQuery('');
+
+        fetchStudentBalances(student.id, year?.id || student.academic_year_id);
     };
 
     const handleFeeAmountChange = (id: number, val: string) => {
@@ -214,59 +249,144 @@ export function CreateReceiptPage() {
         setFeeItems(prev => prev.map(item => item.id === id ? { ...item, amount } : item));
     };
 
-    const totalAmount = feeItems.reduce((sum, item) => sum + item.amount, 0);
+    const totalAmount = receiptType === 'academic'
+        ? feeItems.reduce((sum, item) => sum + item.amount, 0)
+        : itemAmount;
+
+    // Number to words converter
+    const numberToWords = (num: number): string => {
+        const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+        const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+        if ((num = num.toString() as any).length > 9) return 'overflow';
+        let n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+        if (!n) return '';
+        let str = '';
+        str += (Number(n[1]) != 0) ? (a[Number(n[1])] || b[n[1][0] as any] + ' ' + a[n[1][1] as any]) + 'Crore ' : '';
+        str += (Number(n[2]) != 0) ? (a[Number(n[2])] || b[n[2][0] as any] + ' ' + a[n[2][1] as any]) + 'Lakh ' : '';
+        str += (Number(n[3]) != 0) ? (a[Number(n[3])] || b[n[3][0] as any] + ' ' + a[n[3][1] as any]) + 'Thousand ' : '';
+        str += (Number(n[4]) != 0) ? (a[Number(n[4])] || b[n[4][0] as any] + ' ' + a[n[4][1] as any]) + 'Hundred ' : '';
+        str += (Number(n[5]) != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0] as any] + ' ' + a[n[5][1] as any]) + 'Only' : 'Only';
+        return str;
+    };
+
+    useEffect(() => {
+        const amt = amountPaid || totalAmount;
+        if (amt > 0) {
+            setRupeesInWords(numberToWords(amt));
+        } else {
+            setRupeesInWords('');
+        }
+    }, [amountPaid, totalAmount]);
 
     const handleSaveAndPrint = async () => {
         if (!studentInfo.full_name) {
-            alert('Please fill student name');
+            setAlertModal({
+                isOpen: true,
+                type: 'error',
+                title: 'Missing Student Information',
+                message: 'Please search and select a student or enter their name before issuing a receipt.'
+            });
             return;
         }
 
         if (totalAmount === 0) {
-            alert('Please enter at least one fee amount');
+            setAlertModal({
+                isOpen: true,
+                type: 'error',
+                title: 'Zero Amount Receipt',
+                message: 'Please enter a valid receipt amount greater than ₹0.'
+            });
             return;
         }
 
-        if (!studentInfo.id) {
-            const proceed = window.confirm("Warning: No student was selected from the search list. This receipt will PRINT but will NOT be saved to the student app. Do you want to continue?");
-            if (!proceed) return;
+        const effectivePayment = amountPaid || totalAmount;
+
+        // Overpayment Guard Check
+        if (studentInfo.id && balanceInfo.totalAmount > 0) {
+            if (balanceInfo.amountPending <= 0) {
+                setAlertModal({
+                    isOpen: true,
+                    type: 'error',
+                    title: 'Fee Already Fully Paid!',
+                    message: `This student has already fully paid their ${receiptType === 'academic' ? 'Academic Fee' : 'Item Fee'}. Remaining balance is ₹0.`,
+                    details: `Total Fee: ₹${balanceInfo.totalAmount.toLocaleString()} | Total Paid: ₹${balanceInfo.amountPaid.toLocaleString()}`
+                });
+                return;
+            }
+
+            if (effectivePayment > balanceInfo.amountPending) {
+                setAlertModal({
+                    isOpen: true,
+                    type: 'error',
+                    title: 'Payment Exceeds Outstanding Due!',
+                    message: `You entered ₹${effectivePayment.toLocaleString()}, but the remaining pending fee is only ₹${balanceInfo.amountPending.toLocaleString()}.`,
+                    details: `Total Fee: ₹${balanceInfo.totalAmount.toLocaleString()} | Already Paid: ₹${balanceInfo.amountPaid.toLocaleString()} | Due: ₹${balanceInfo.amountPending.toLocaleString()}`
+                });
+                return;
+            }
         }
 
         setSaving(true);
         try {
-            // Save to database if student exists, or just print if manual
             if (studentInfo.id) {
-                const { error } = await supabase.from('fee_receipts').insert([{
-                    receipt_number: parseInt(receiptNumber),
+                const insertPayload: any = {
                     student_id: studentInfo.id,
                     academic_year_id: studentInfo.academic_year_id,
                     receipt_date: receiptDate,
                     total_amount: totalAmount,
-                    amount_paid: amountPaid || totalAmount,
-                    amount_pending: totalAmount - (amountPaid || totalAmount),
-                    payment_status: (amountPaid || totalAmount) >= totalAmount ? 'Paid' : 'Partial',
+                    amount_paid: effectivePayment,
+                    amount_pending: Math.max(0, totalAmount - effectivePayment),
+                    payment_status: effectivePayment >= totalAmount ? 'Paid' : 'Partial',
                     payment_mode: paymentMode,
-                    admission_fee: feeItems[0].amount,
-                    tuition_fee: feeItems[1].amount,
-                    betterment_fee: feeItems[2].amount,
-                    sports_fee: feeItems[3].amount,
-                    reading_room_fee: feeItems[4].amount,
-                    medical_fee: feeItems[5].amount,
-                    laboratory_fee: feeItems[6].amount,
-                    ave_fee: feeItems[7].amount,
-                    swf: feeItems[8].amount,
-                    tbf: feeItems[9].amount,
-                    examination_fee: feeItems[10].amount,
-                    fines: feeItems[11].amount,
-                    others: feeItems[12].amount
-                }]);
+                    receipt_type: receiptType,
+                    is_cancelled: false
+                };
+
+                if (receiptType === 'academic') {
+                    insertPayload.receipt_number = parseInt(receiptNumber, 10) || 1;
+                    insertPayload.admission_fee = feeItems[0].amount;
+                    insertPayload.tuition_fee = feeItems[1].amount;
+                    insertPayload.betterment_fee = feeItems[2].amount;
+                    insertPayload.sports_fee = feeItems[3].amount;
+                    insertPayload.reading_room_fee = feeItems[4].amount;
+                    insertPayload.medical_fee = feeItems[5].amount;
+                    insertPayload.laboratory_fee = feeItems[6].amount;
+                    insertPayload.ave_fee = feeItems[7].amount;
+                    insertPayload.swf = feeItems[8].amount;
+                    insertPayload.tbf = feeItems[9].amount;
+                    insertPayload.examination_fee = feeItems[10].amount;
+                    insertPayload.fines = feeItems[11].amount;
+                    insertPayload.others = feeItems[12].amount;
+                } else {
+                    insertPayload.item_type = selectedItemType;
+                    insertPayload.item_receipt_number = parseInt(receiptNumber, 10) || 1;
+                    insertPayload.receipt_number = parseInt(receiptNumber, 10) || 1;
+                }
+
+                const { error } = await supabase.from('fee_receipts').insert([insertPayload]);
                 if (error) throw error;
             }
 
+            setAlertModal({
+                isOpen: true,
+                type: 'success',
+                title: 'Receipt Created Successfully!',
+                message: `Receipt #${receiptNumber} for ₹${effectivePayment.toLocaleString()} has been recorded and synced to the database.`,
+                details: studentInfo.full_name ? `Student: ${studentInfo.full_name} (${studentInfo.class_name})` : undefined
+            });
+
+            // Trigger physical print dialog
             window.print();
-            navigate('/billing');
+            fetchReceiptNumber();
         } catch (error: any) {
-            alert('Error saving: ' + error.message);
+            console.error('Error generating receipt:', error);
+            setAlertModal({
+                isOpen: true,
+                type: 'error',
+                title: 'Failed to Save Receipt',
+                message: error.message || 'An unexpected error occurred while saving the receipt.'
+            });
         } finally {
             setSaving(false);
         }
@@ -274,229 +394,351 @@ export function CreateReceiptPage() {
 
     return (
         <div className="create-receipt-page">
-            <div className="page-header no-print">
+            {/* Apple-Style Color-Coded Big Alert Modal */}
+            {alertModal.isOpen && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+                    backdropFilter: 'blur(8px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999
+                }}>
+                    <div style={{
+                        width: '90%',
+                        maxWidth: '480px',
+                        backgroundColor: '#FFFFFF',
+                        borderRadius: '24px',
+                        padding: '32px',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                        borderTop: `6px solid ${alertModal.type === 'error' ? '#EF4444' : '#10B981'}`,
+                        textAlign: 'center',
+                        animation: 'scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                    }}>
+                        <div style={{
+                            width: '64px',
+                            height: '64px',
+                            borderRadius: '50%',
+                            backgroundColor: alertModal.type === 'error' ? '#FEE2E2' : '#D1FAE5',
+                            color: alertModal.type === 'error' ? '#EF4444' : '#10B981',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            margin: '0 auto 16px auto'
+                        }}>
+                            {alertModal.type === 'error' ? <AlertCircle size={36} /> : <CheckCircle2 size={36} />}
+                        </div>
+
+                        <h2 style={{
+                            fontSize: '22px',
+                            fontWeight: 800,
+                            color: alertModal.type === 'error' ? '#B91C1C' : '#047857',
+                            marginBottom: '12px'
+                        }}>
+                            {alertModal.title}
+                        </h2>
+
+                        <p style={{
+                            fontSize: '15px',
+                            color: '#334155',
+                            lineHeight: 1.5,
+                            marginBottom: alertModal.details ? '12px' : '24px'
+                        }}>
+                            {alertModal.message}
+                        </p>
+
+                        {alertModal.details && (
+                            <div style={{
+                                backgroundColor: '#F8FAFC',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: '12px',
+                                padding: '12px 16px',
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                color: '#475569',
+                                marginBottom: '24px'
+                            }}>
+                                {alertModal.details}
+                            </div>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={() => setAlertModal(prev => ({ ...prev, isOpen: false }))}
+                            style={{
+                                width: '100%',
+                                padding: '14px',
+                                borderRadius: '14px',
+                                border: 'none',
+                                backgroundColor: alertModal.type === 'error' ? '#EF4444' : '#10B981',
+                                color: '#FFFFFF',
+                                fontSize: '16px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                boxShadow: alertModal.type === 'error'
+                                    ? '0 10px 15px -3px rgba(239, 68, 68, 0.3)'
+                                    : '0 10px 15px -3px rgba(16, 185, 129, 0.3)'
+                            }}
+                        >
+                            Got It
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Left Sidebar / Controls */}
+            <div className="receipt-controls no-print">
                 <button className="back-btn" onClick={() => navigate('/billing')}>
                     <ChevronLeft size={20} />
-                    Back to Billing
+                    <span>Back to Billing</span>
                 </button>
-                <div className="header-actions">
-                    <button className="print-save-btn" onClick={handleSaveAndPrint} disabled={saving}>
-                        <Printer size={20} />
-                        {saving ? 'Creating...' : 'Submit & Print'}
+
+                <div className="controls-header">
+                    <h2>Issue Fee Receipt</h2>
+                    <p>Select category, student, and print official receipt</p>
+                </div>
+
+                {/* Apple Segmented Toggle: Academic Fee vs Ancillary Item Fee */}
+                <div style={{
+                    display: 'flex',
+                    background: '#E2E8F0',
+                    padding: '3px',
+                    borderRadius: '10px',
+                    marginBottom: '16px'
+                }}>
+                    <button
+                        type="button"
+                        onClick={() => setReceiptType('academic')}
+                        style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            border: 'none',
+                            borderRadius: '8px',
+                            background: receiptType === 'academic' ? '#FFFFFF' : 'transparent',
+                            color: receiptType === 'academic' ? '#0F172A' : '#64748B',
+                            fontWeight: 700,
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px'
+                        }}
+                    >
+                        <Layers size={14} /> Academic Fee
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setReceiptType('item')}
+                        style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            border: 'none',
+                            borderRadius: '8px',
+                            background: receiptType === 'item' ? '#FFFFFF' : 'transparent',
+                            color: receiptType === 'item' ? '#0F172A' : '#64748B',
+                            fontWeight: 700,
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px'
+                        }}
+                    >
+                        <Package size={14} /> 5 Items Fee
+                    </button>
+                </div>
+
+                {/* If Item Receipt: select which item */}
+                {receiptType === 'item' && (
+                    <div className="control-group" style={{ marginBottom: '16px' }}>
+                        <label>Select Item</label>
+                        <select
+                            value={selectedItemType}
+                            onChange={(e) => setSelectedItemType(e.target.value)}
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontWeight: 600 }}
+                        >
+                            {ANCILLARY_OPTIONS.map(opt => (
+                                <option key={opt.key} value={opt.key}>
+                                    {opt.label_en} ({opt.label_kn})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
+                {/* Search Student */}
+                <div className="control-group search-box-wrapper">
+                    <label>Auto-Fill from Database</label>
+                    <div className="search-input-box">
+                        <Search size={18} className="search-icon" />
+                        <input
+                            type="text"
+                            placeholder="Type Student Name or Reg No..."
+                            value={searchQuery}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                searchStudents(e.target.value);
+                            }}
+                        />
+                    </div>
+
+                    {searchResults.length > 0 && (
+                        <div className="search-results-dropdown">
+                            {searchResults.map((stu) => (
+                                <div
+                                    key={stu.id}
+                                    className="search-item"
+                                    onClick={() => handleSelectStudent(stu)}
+                                >
+                                    <strong>{stu.full_name}</strong>
+                                    <span>{stu.classes?.class_name || 'No Class'} • Reg: {stu.registration_number}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Display Current Student Outstanding Balance */}
+                {studentInfo.id && (
+                    <div style={{
+                        background: '#F8FAFC',
+                        border: '1px solid #CBD5E1',
+                        borderRadius: '12px',
+                        padding: '14px',
+                        marginBottom: '16px'
+                    }}>
+                        <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>
+                            {receiptType === 'academic' ? 'Academic Fee Status' : `${selectedItemType.toUpperCase()} Fee Status`}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '13px' }}>
+                            <span>Total Set: <strong>₹{balanceInfo.totalAmount.toLocaleString()}</strong></span>
+                            <span>Paid: <strong style={{ color: '#16A34A' }}>₹{balanceInfo.amountPaid.toLocaleString()}</strong></span>
+                            <span>Due: <strong style={{ color: balanceInfo.amountPending > 0 ? '#DC2626' : '#16A34A' }}>₹{balanceInfo.amountPending.toLocaleString()}</strong></span>
+                        </div>
+                    </div>
+                )}
+
+                <div className="control-group-row">
+                    <div className="control-group">
+                        <label>Receipt No. {receiptType === 'item' ? '(Item Sequence)' : ''}</label>
+                        <input
+                            type="text"
+                            value={receiptNumber}
+                            onChange={(e) => setReceiptNumber(e.target.value)}
+                        />
+                    </div>
+                    <div className="control-group">
+                        <label>Date</label>
+                        <input
+                            type="date"
+                            value={receiptDate}
+                            onChange={(e) => setReceiptDate(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                {/* Amount Paid & Mode */}
+                <div className="control-group-row">
+                    <div className="control-group">
+                        <label>Amount Paid (₹)</label>
+                        <input
+                            type="number"
+                            value={amountPaid || totalAmount || ''}
+                            onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
+                        />
+                    </div>
+                    <div className="control-group">
+                        <label>Payment Mode</label>
+                        <select value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)}>
+                            <option value="Cash">Cash</option>
+                            <option value="Online / UPI">Online / UPI</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="Cheque">Cheque</option>
+                        </select>
+                    </div>
+                </div>
+
+                {/* If item receipt, editable item amount input */}
+                {receiptType === 'item' && (
+                    <div className="control-group" style={{ marginBottom: '16px' }}>
+                        <label>Item Fee Amount (₹)</label>
+                        <input
+                            type="number"
+                            value={itemAmount || ''}
+                            onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                setItemAmount(val);
+                                setAmountPaid(val);
+                            }}
+                            placeholder="Enter amount..."
+                        />
+                    </div>
+                )}
+
+                <div className="action-buttons-stack">
+                    <button
+                        className="print-btn"
+                        onClick={handleSaveAndPrint}
+                        disabled={saving}
+                    >
+                        <Printer size={18} />
+                        <span>{saving ? 'Saving...' : 'Print & Save Official Receipt'}</span>
                     </button>
                 </div>
             </div>
 
-            <div className="receipt-builder-grid no-print">
-                {/* Left: Input Form */}
-                <div className="form-card">
-                    <div className="card-header-row">
-                        <Edit3 size={18} />
-                        <h2>Fill Student Details</h2>
-                        {!studentInfo.id && <span className="manual-badge">Manual Entry</span>}
-                    </div>
+            {/* Right Printable Official Receipt Canvas */}
+            <div className="receipt-preview-area">
+                <div className="official-receipt-sheet" id="printable-receipt">
+                    <div className="sheet-border-decor"></div>
 
-                    <div className="search-mini">
-                        <label>Search & Select (Required for App Sync)</label>
-                        <div className="search-input-wrap">
-                            <Search size={16} />
-                            <input
-                                type="text"
-                                placeholder="Search student..."
-                                value={searchQuery}
-                                onChange={(e) => {
-                                    setSearchQuery(e.target.value);
-                                    searchStudents(e.target.value);
-                                }}
-                            />
-                            {searchResults.length > 0 && (
-                                <div className="mini-results">
-                                    {searchResults.map(s => (
-                                        <div key={s.id} onClick={() => handleSelectStudent(s)}>
-                                            {s.full_name} ({s.registration_number})
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                    {/* Top School Header */}
+                    <div className="receipt-header">
+                        <div className="school-trust-name">ಅಪ್ಪಾಜಿ ಶಿಕ್ಷಣ ಸಂಸ್ಥೆ (ರಿ.) / Appaji Education Trust (R.)</div>
+                        <h1 className="school-main-title">ಗ್ರಾಮೀಣ ಕ್ರೀಡಾ ವಸತಿ ಶಾಲೆ</h1>
+                        <h2 className="school-sub-title">GRAMEENA KRIDA VASATI SHALE</h2>
+                        <div className="school-address">ಶರಣ ಸಿರಸಗಿ, ಕಲಬುರಗಿ / Sharan Sirsagi, Kalaburagi</div>
+                        <div className="receipt-badge-title">
+                            {receiptType === 'academic' ? 'ಶುಲ್ಕ ರಸೀದಿ / FEE RECEIPT' : `ವಿಶೇಷ ಶುಲ್ಕ ರಸೀದಿ / ITEM FEE RECEIPT (${selectedItemType.toUpperCase()})`}
                         </div>
                     </div>
 
-                    <div className="form-grid-2">
-                        <div className="input-group">
-                            <label>Student Name</label>
-                            <input
-                                type="text"
-                                value={studentInfo.full_name}
-                                onChange={(e) => setStudentInfo({ ...studentInfo, full_name: e.target.value })}
-                            />
+                    <div className="receipt-meta-row">
+                        <div className="meta-col">
+                            <span className="meta-label">ರಸೀದಿ ನಂ. / Receipt No.: </span>
+                            <span className="handwritten-val bold">{receiptNumber}</span>
                         </div>
-                        <div className="input-group">
-                            <label>S/o or D/o Name</label>
-                            <input
-                                type="text"
-                                value={studentInfo.parent_name}
-                                onChange={(e) => setStudentInfo({ ...studentInfo, parent_name: e.target.value })}
-                            />
+                        <div className="meta-col center">
+                            <span className="meta-label">ಶೈಕ್ಷಣಿಕ ವರ್ಷ / Year: </span>
+                            <span className="handwritten-val bold">{studentInfo.academic_year_name || '2026-2027'}</span>
                         </div>
-                        <div className="input-group">
-                            <label>Registration No</label>
-                            <input
-                                type="text"
-                                value={studentInfo.registration_number}
-                                onChange={(e) => setStudentInfo({ ...studentInfo, registration_number: e.target.value })}
-                            />
-                        </div>
-                        <div className="input-group">
-                            <label>Class</label>
-                            <input
-                                type="text"
-                                value={studentInfo.class_name}
-                                onChange={(e) => setStudentInfo({ ...studentInfo, class_name: e.target.value })}
-                            />
-                        </div>
-                        <div className="input-group">
-                            <label>Roll No</label>
-                            <input
-                                type="text"
-                                value={studentInfo.roll_number}
-                                onChange={(e) => setStudentInfo({ ...studentInfo, roll_number: e.target.value })}
-                            />
-                        </div>
-                        <div className="input-group">
-                            <label>Section</label>
-                            <input
-                                type="text"
-                                value={studentInfo.section}
-                                onChange={(e) => setStudentInfo({ ...studentInfo, section: e.target.value })}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="payment-metadata">
-                        <div className="input-group">
-                            <label>Receipt Date</label>
-                            <input type="date" value={receiptDate} onChange={(e) => setReceiptDate(e.target.value)} />
-                        </div>
-                        <div className="input-group">
-                            <label>Payment Mode</label>
-                            <select value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)}>
-                                <option value="Cash">Cash</option>
-                                <option value="UPI">UPI</option>
-                                <option value="Card">Card</option>
-                                <option value="Cheque">Cheque</option>
-                                <option value="Bank Transfer">Bank Transfer</option>
-                            </select>
-                        </div>
-                        <div className="input-group">
-                            <label>Actual Amount Paid (₹)</label>
-                            <input
-                                type="number"
-                                value={amountPaid || ''}
-                                onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
-                                placeholder={totalAmount.toString()}
-                            />
-                            <p className="input-hint">Leave blank if full amount paid</p>
-                        </div>
-                        <div className="input-group">
-                            <label>Rupees in Words</label>
-                            <input type="text" value={rupeesInWords} onChange={(e) => setRupeesInWords(e.target.value)} placeholder="e.g. Three Thousand Only" />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Right: Fee Inputs */}
-                <div className="fee-card">
-                    <div className="card-header-row">
-                        <span className="rupee-icon">₹</span>
-                        <h2>Enter Fee Amounts</h2>
-                    </div>
-                    <div className="fee-inputs-list">
-                        {feeItems.map(item => (
-                            <div className="fee-input-row" key={item.id}>
-                                <div className="label-col">
-                                    <span className="kn-label">{item.label_kn}</span>
-                                    <span className="en-label">{item.label_en}</span>
-                                </div>
-                                <div className="amount-col">
-                                    <input
-                                        type="number"
-                                        value={item.amount || ''}
-                                        onChange={(e) => handleFeeAmountChange(item.id, e.target.value)}
-                                        placeholder="0"
-                                    />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    <div className="total-summary">
-                        <span>TOTAL:</span>
-                        <span className="amount-text">₹{totalAmount.toLocaleString()}</span>
-                    </div>
-                    <div style={{ marginTop: '24px', padding: '0 8px' }}>
-                        <button
-                            className="print-save-btn-bottom"
-                            onClick={handleSaveAndPrint}
-                            disabled={saving}
-                            style={{
-                                width: '100%',
-                                padding: '14px 20px',
-                                background: 'linear-gradient(135deg, #0071E3, #0055B3)',
-                                color: '#FFFFFF',
-                                border: 'none',
-                                borderRadius: '12px',
-                                fontSize: '15px',
-                                fontWeight: '700',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                boxShadow: '0 4px 12px rgba(0, 113, 227, 0.2)'
-                            }}
-                        >
-                            <Printer size={18} />
-                            {saving ? 'Creating Receipt...' : 'Submit & Print Receipt'}
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* FORMAL RECEIPT FOR PRINTING */}
-            <div className="physical-receipt-print">
-                <div className="receipt-border">
-                    <div className="receipt-header-main">
-                        <span className="receipt-title-kn">ಫೀ ರಶೀದಿ ಪುಸ್ತಕ</span>
-                        <span className="receipt-divider"> / </span>
-                        <span className="receipt-title-en">Fee Receipt Book</span>
-                    </div>
-
-                    <div className="school-info-section">
-                        <div className="school-logo">
-                            <img src="/logo.jpeg" alt="Logo" />
-                        </div>
-                        <div className="school-names">
-                            <h1 className="main-school-name">Grameen Krida vasati shale sharan sirasagi</h1>
-                            <p className="school-location">SHARAN SIRASAGI, GULBARGA</p>
-                        </div>
-                    </div>
-
-                    <div className="top-meta-row">
-                        <div className="meta-left">
-                            <span>ನಂ.</span>
-                            <span className="field-label-en">No.</span>
-                            <span className="handwritten-val">{receiptNumber}</span>
-                        </div>
-                        <div className="meta-right">
-                            <span>ದಿನಾಂಕ</span>
-                            <span className="field-label-en">Date:</span>
-                            <span className="handwritten-val">{new Date(receiptDate).toLocaleDateString('en-GB')}</span>
+                        <div className="meta-col right">
+                            <span className="meta-label">ದಿನಾಂಕ / Date: </span>
+                            <span className="handwritten-val">{receiptDate}</span>
                         </div>
                     </div>
 
                     <div className="student-detail-row">
-                        <span>ವಿದ್ಯಾರ್ಥಿ/ನಿ ಹೆಸರು: </span>
-                        <span className="field-label-en">Name of the Student: </span>
-                        <span className="handwritten-val-full">{studentInfo.full_name} {(studentInfo.parent_name) ? `S/o ${studentInfo.parent_name}` : ''}</span>
+                        <div className="field-group full-width">
+                            <span>ವಿದ್ಯಾರ್ಥಿಯ ಹೆಸರು / </span>
+                            <span className="field-label-en">Student Name:</span>
+                            <span className="handwritten-val name-val">{studentInfo.full_name}</span>
+                        </div>
+                    </div>
+
+                    <div className="student-detail-row">
+                        <div className="field-group full-width">
+                            <span>ತಂದೆಯ ಹೆಸರು / </span>
+                            <span className="field-label-en">Father Name:</span>
+                            <span className="handwritten-val name-val">{studentInfo.parent_name}</span>
+                        </div>
                     </div>
 
                     <div className="class-detail-row">
@@ -517,38 +759,83 @@ export function CreateReceiptPage() {
                         </div>
                     </div>
 
-                    <table className="physical-table">
-                        <thead>
-                            <tr>
-                                <th style={{ width: '10%' }}>Sl.No.</th>
-                                <th style={{ width: '60%', textAlign: 'left' }}>ವಿವರಗಳು/Particulars</th>
-                                <th style={{ width: '30%' }}>ರೂ./Rs.</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {feeItems.map(item => (
-                                <tr key={item.id}>
-                                    <td className="center">{item.id}.</td>
+                    {/* Table for Academic Fees vs Item Fees */}
+                    {receiptType === 'academic' ? (
+                        <table className="physical-table">
+                            <thead>
+                                <tr>
+                                    <th style={{ width: '10%' }}>Sl.No.</th>
+                                    <th style={{ width: '60%', textAlign: 'left' }}>ವಿವರಗಳು/Particulars</th>
+                                    <th style={{ width: '30%' }}>ರೂ./Rs.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {feeItems.map(item => (
+                                    <tr key={item.id}>
+                                        <td className="center">{item.id}.</td>
+                                        <td>
+                                            <span className="table-kn">{item.label_kn} / </span>
+                                            <span className="table-en">{item.label_en}</span>
+                                        </td>
+                                        <td className="amount-cell">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={item.amount || ''}
+                                                onChange={(e) => handleFeeAmountChange(item.id, e.target.value)}
+                                                placeholder="0.00"
+                                                style={{ width: '80px', border: '1px solid #CBD5E1', borderRadius: '4px', textAlign: 'right', padding: '2px 4px' }}
+                                            />
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colSpan={2} className="total-label">
+                                        <span className="kn-bold">ಒಟ್ಟು / </span>
+                                        <span className="en-bold">TOTAL</span>
+                                    </td>
+                                    <td className="total-amount-val">{totalAmount}.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    ) : (
+                        <table className="physical-table">
+                            <thead>
+                                <tr>
+                                    <th style={{ width: '10%' }}>Sl.No.</th>
+                                    <th style={{ width: '60%', textAlign: 'left' }}>ವಿವರಗಳು/Particulars</th>
+                                    <th style={{ width: '30%' }}>ರೂ./Rs.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td className="center">1.</td>
                                     <td>
-                                        <span className="table-kn">{item.label_kn} / </span>
-                                        <span className="table-en">{item.label_en}</span>
+                                        <span className="table-kn">
+                                            {ANCILLARY_OPTIONS.find(o => o.key === selectedItemType)?.label_kn} /{' '}
+                                        </span>
+                                        <span className="table-en">
+                                            {ANCILLARY_OPTIONS.find(o => o.key === selectedItemType)?.label_en}
+                                        </span>
                                     </td>
                                     <td className="amount-cell">
-                                        {item.amount > 0 ? `${item.amount}.00` : ''}
+                                        {itemAmount > 0 ? `${itemAmount}.00` : ''}
                                     </td>
                                 </tr>
-                            ))}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colSpan={2} className="total-label">
-                                    <span className="kn-bold">ಒಟ್ಟು / </span>
-                                    <span className="en-bold">TOTAL</span>
-                                </td>
-                                <td className="total-amount-val">{totalAmount}.00</td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colSpan={2} className="total-label">
+                                        <span className="kn-bold">ಒಟ್ಟು / </span>
+                                        <span className="en-bold">TOTAL</span>
+                                    </td>
+                                    <td className="total-amount-val">{totalAmount}.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    )}
 
                     <div className="words-section">
                         <span className="kn-small">ರೂಪಾಯಿ (ಅಕ್ಷರಗಳಲ್ಲಿ) : </span>

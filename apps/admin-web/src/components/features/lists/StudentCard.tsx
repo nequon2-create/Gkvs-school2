@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePhotoLightbox } from '../../../context/PhotoLightboxContext';
 import type { StudentListItem } from '../../../types/list.types';
 import './StudentCard.css';
 
@@ -12,6 +13,7 @@ interface StudentCardProps {
 
 export function StudentCard({ student, onView, onEdit, onDelete }: StudentCardProps) {
     const navigate = useNavigate();
+    const { openPhoto } = usePhotoLightbox();
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const handleDeleteClick = () => {
@@ -45,7 +47,22 @@ export function StudentCard({ student, onView, onEdit, onDelete }: StudentCardPr
             style={{ cursor: 'pointer' }}
         >
             <div className="student-card-header">
-                <div className="student-avatar">
+                <div
+                    className="student-avatar"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        openPhoto({
+                            photoUrl: student.photo_url,
+                            title: student.full_name,
+                            subtitle: `${student.registration_number} • ${className}`,
+                            badge: yearName !== 'N/A' ? yearName : undefined
+                        });
+                    }}
+                    title="Click to view full photo (WhatsApp style)"
+                    style={{ cursor: 'pointer', transition: 'transform 0.15s' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                >
                     {student.photo_url ? (
                         <img src={student.photo_url} alt={student.full_name} />
                     ) : (

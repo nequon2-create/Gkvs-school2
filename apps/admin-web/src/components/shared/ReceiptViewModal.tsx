@@ -11,6 +11,9 @@ interface ReceiptViewModalProps {
 interface ReceiptData {
     id: string;
     receipt_number: number;
+    item_receipt_number?: number;
+    receipt_type?: string;
+    item_type?: string;
     receipt_date: string;
     total_amount: number;
     amount_paid: number;
@@ -29,6 +32,9 @@ interface ReceiptData {
     fines: number;
     others: number;
     student_id: string;
+    academic_years?: {
+        year_name: string;
+    } | null;
 }
 
 interface StudentData {
@@ -41,6 +47,14 @@ interface StudentData {
         section: string | null;
     } | null;
 }
+
+const ITEM_NAME_MAP: Record<string, { kn: string; en: string }> = {
+    uniform: { kn: 'ಶಾಲಾ ಸಮವಸ್ತ್ರ ಶುಲ್ಕ', en: 'School Dress / Uniform Fee' },
+    books: { kn: 'ಪುಸ್ತಕಗಳ ಶುಲ್ಕ', en: 'Books Fee' },
+    van: { kn: 'ವಾಹನ / ಸಾರಿಗೆ ಶುಲ್ಕ', en: 'Van / Transport Fee' },
+    tie_belt: { kn: 'ಟೈ ಮತ್ತು ಬೆಲ್ಟ್ ಶುಲ್ಕ', en: 'Tie & Belt Fee' },
+    shoes: { kn: 'ಶೂಸ್ / ಪಾದರಕ್ಷೆ ಶುಲ್ಕ', en: 'Shoes Fee' },
+};
 
 function numberToWords(num: number): string {
     if (num === 0) return 'Zero Only';
@@ -74,10 +88,15 @@ export function ReceiptViewModal({ receiptId, onClose }: ReceiptViewModalProps) 
     const fetchReceiptDetails = async () => {
         setLoading(true);
         try {
-            // 1. Fetch receipt data
+            // 1. Fetch receipt data with academic year
             const { data: receiptData, error: receiptErr } = await supabase
                 .from('fee_receipts')
-                .select('*')
+                .select(`
+                    *,
+                    academic_years (
+                        year_name
+                    )
+                `)
                 .eq('id', receiptId)
                 .single();
 
@@ -86,7 +105,7 @@ export function ReceiptViewModal({ receiptId, onClose }: ReceiptViewModalProps) 
             if (receiptData) {
                 setReceipt(receiptData);
 
-                // 2. Fetch student details separately
+                // 2. Fetch student details
                 if (receiptData.student_id) {
                     const { data: studentData, error: studentErr } = await supabase
                         .from('students')
@@ -141,6 +160,9 @@ export function ReceiptViewModal({ receiptId, onClose }: ReceiptViewModalProps) 
         );
     }
 
+    const isItemReceipt = receipt.receipt_type === 'item';
+    const itemDetails = isItemReceipt && receipt.item_type ? ITEM_NAME_MAP[receipt.item_type] : null;
+
     const feeItems = [
         { id: 1, label_kn: 'ಪ್ರವೇಶ/ಪುನಃ ಪ್ರವೇಶ', label_en: 'Admn. / Re-Admn. Fee', amount: Number(receipt.admission_fee) || 0 },
         { id: 2, label_kn: 'ಬೋಧನಾ ಶುಲ್ಕ', label_en: 'Tuition Fee', amount: Number(receipt.tuition_fee) || 0 },
@@ -157,7 +179,10 @@ export function ReceiptViewModal({ receiptId, onClose }: ReceiptViewModalProps) 
         { id: 13, label_kn: 'ಇತರೆ', label_en: 'Others', amount: Number(receipt.others) || 0 }
     ];
 
-    const receiptNumberStr = receipt.receipt_number.toString().padStart(4, '0');
+    const displayReceiptNumber = isItemReceipt
+        ? String(receipt.item_receipt_number || receipt.receipt_number)
+        : receipt.receipt_number.toString().padStart(4, '0');
+
     const rupeesWordsStr = numberToWords(receipt.amount_paid);
 
     return (
@@ -168,7 +193,11 @@ export function ReceiptViewModal({ receiptId, onClose }: ReceiptViewModalProps) 
                     <div className="modal-top-actions no-print">
                         <div className="modal-title-group">
                             <h2>Receipt Preview</h2>
-                            <p>Receipt #{receiptNumberStr}</p>
+                            <p>
+                                {isItemReceipt
+                                    ? `Item Receipt #${displayReceiptNumber} (${itemDetails?.en || receipt.item_type})`
+                                    : `Academic Receipt #${displayReceiptNumber}`}
+                            </p>
                         </div>
                         <div className="modal-btn-group">
                             <button className="modal-print-btn" onClick={handlePrint}>
@@ -182,12 +211,15 @@ export function ReceiptViewModal({ receiptId, onClose }: ReceiptViewModalProps) 
                     </div>
 
                     <div className="receipt-preview-body">
-                        {/* Styled exact copy of the receipt container for screen preview */}
                         <div className="receipt-border">
                             <div className="receipt-header-main">
-                                <span className="receipt-title-kn">ಫೀ ರಶೀದಿ ಪುಸ್ತಕ</span>
+                                <span className="receipt-title-kn">
+                                    {isItemReceipt ? 'ವಿಶೇಷ ಶುಲ್ಕ ರಶೀದಿ ಪುಸ್ತಕ' : 'ಫೀ ರಶೀದಿ ಪುಸ್ತಕ'}
+                                </span>
                                 <span className="receipt-divider"> / </span>
-                                <span className="receipt-title-en">Fee Receipt Book</span>
+                                <span className="receipt-title-en">
+                                    {isItemReceipt ? 'Item Fee Receipt Book' : 'Fee Receipt Book'}
+                                </span>
                             </div>
 
                             <div className="school-info-section">
@@ -204,7 +236,11 @@ export function ReceiptViewModal({ receiptId, onClose }: ReceiptViewModalProps) 
                                 <div className="meta-left">
                                     <span>ನಂ.</span>
                                     <span className="field-label-en">No.</span>
-                                    <span className="handwritten-val">{receiptNumberStr}</span>
+                                    <span className="handwritten-val">{displayReceiptNumber}</span>
+                                </div>
+                                <div className="meta-center">
+                                    <span>ಶೈಕ್ಷಣಿಕ ವರ್ಷ / Year: </span>
+                                    <span className="handwritten-val bold">{receipt.academic_years?.year_name || 'Current'}</span>
                                 </div>
                                 <div className="meta-right">
                                     <span>ದಿನಾಂಕ</span>
@@ -239,38 +275,72 @@ export function ReceiptViewModal({ receiptId, onClose }: ReceiptViewModalProps) 
                                 </div>
                             </div>
 
-                            <table className="physical-table">
-                                <thead>
-                                    <tr>
-                                        <th style={{ width: '10%' }}>Sl.No.</th>
-                                        <th style={{ width: '60%', textAlign: 'left' }}>ವಿವರಗಳು/Particulars</th>
-                                        <th style={{ width: '30%' }}>ರೂ./Rs.</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {feeItems.map(item => (
-                                        <tr key={item.id}>
-                                            <td className="center">{item.id}.</td>
+                            {/* Table */}
+                            {isItemReceipt ? (
+                                <table className="physical-table">
+                                    <thead>
+                                        <tr>
+                                            <th style={{ width: '10%' }}>Sl.No.</th>
+                                            <th style={{ width: '60%', textAlign: 'left' }}>ವಿವರಗಳು/Particulars</th>
+                                            <th style={{ width: '30%' }}>ರೂ./Rs.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td className="center">1.</td>
                                             <td>
-                                                <span className="table-kn">{item.label_kn} / </span>
-                                                <span className="table-en">{item.label_en}</span>
+                                                <span className="table-kn">{itemDetails?.kn || receipt.item_type} / </span>
+                                                <span className="table-en">{itemDetails?.en || receipt.item_type}</span>
                                             </td>
                                             <td className="amount-cell">
-                                                {item.amount > 0 ? `${item.amount}.00` : ''}
+                                                {receipt.amount_paid > 0 ? `${receipt.amount_paid}.00` : ''}
                                             </td>
                                         </tr>
-                                    ))}
-                                </tbody>
-                                <tfoot>
-                                    <tr>
-                                        <td colSpan={2} className="total-label">
-                                            <span className="kn-bold">ಒಟ್ಟು / </span>
-                                            <span className="en-bold">TOTAL</span>
-                                        </td>
-                                        <td className="total-amount-val">{receipt.total_amount}.00</td>
-                                    </tr>
-                                </tfoot>
-                            </table>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td colSpan={2} className="total-label">
+                                                <span className="kn-bold">ಒಟ್ಟು / </span>
+                                                <span className="en-bold">TOTAL</span>
+                                            </td>
+                                            <td className="total-amount-val">{receipt.amount_paid}.00</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            ) : (
+                                <table className="physical-table">
+                                    <thead>
+                                        <tr>
+                                            <th style={{ width: '10%' }}>Sl.No.</th>
+                                            <th style={{ width: '60%', textAlign: 'left' }}>ವಿವರಗಳು/Particulars</th>
+                                            <th style={{ width: '30%' }}>ರೂ./Rs.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {feeItems.map(item => (
+                                            <tr key={item.id}>
+                                                <td className="center">{item.id}.</td>
+                                                <td>
+                                                    <span className="table-kn">{item.label_kn} / </span>
+                                                    <span className="table-en">{item.label_en}</span>
+                                                </td>
+                                                <td className="amount-cell">
+                                                    {item.amount > 0 ? `${item.amount}.00` : ''}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td colSpan={2} className="total-label">
+                                                <span className="kn-bold">ಒಟ್ಟು / </span>
+                                                <span className="en-bold">TOTAL</span>
+                                            </td>
+                                            <td className="total-amount-val">{receipt.total_amount}.00</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            )}
 
                             <div className="words-section">
                                 <span className="kn-small">ರೂಪಾಯಿ (ಅಕ್ಷರಗಳಲ್ಲಿ) : </span>
@@ -290,13 +360,17 @@ export function ReceiptViewModal({ receiptId, onClose }: ReceiptViewModalProps) 
                 </div>
             </div>
 
-            {/* PRINT PORTAL LAYOUT (Visible only when printing) */}
+            {/* PRINT PORTAL LAYOUT */}
             <div className="physical-receipt-print">
                 <div className="receipt-border">
                     <div className="receipt-header-main">
-                        <span className="receipt-title-kn">ಫೀ ರಶೀದಿ ಪುಸ್ತಕ</span>
+                        <span className="receipt-title-kn">
+                            {isItemReceipt ? 'ವಿಶೇಷ ಶುಲ್ಕ ರಶೀದಿ ಪುಸ್ತಕ' : 'ಫೀ ರಶೀದಿ ಪುಸ್ತಕ'}
+                        </span>
                         <span className="receipt-divider"> / </span>
-                        <span className="receipt-title-en">Fee Receipt Book</span>
+                        <span className="receipt-title-en">
+                            {isItemReceipt ? 'Item Fee Receipt Book' : 'Fee Receipt Book'}
+                        </span>
                     </div>
 
                     <div className="school-info-section">
@@ -313,7 +387,11 @@ export function ReceiptViewModal({ receiptId, onClose }: ReceiptViewModalProps) 
                         <div className="meta-left">
                             <span>ನಂ.</span>
                             <span className="field-label-en">No.</span>
-                            <span className="handwritten-val">{receiptNumberStr}</span>
+                            <span className="handwritten-val">{displayReceiptNumber}</span>
+                        </div>
+                        <div className="meta-center">
+                            <span>ಶೈಕ್ಷಣಿಕ ವರ್ಷ / Year: </span>
+                            <span className="handwritten-val bold">{receipt.academic_years?.year_name || 'Current'}</span>
                         </div>
                         <div className="meta-right">
                             <span>ದಿನಾಂಕ</span>
@@ -348,38 +426,71 @@ export function ReceiptViewModal({ receiptId, onClose }: ReceiptViewModalProps) 
                         </div>
                     </div>
 
-                    <table className="physical-table">
-                        <thead>
-                            <tr>
-                                <th style={{ width: '10%' }}>Sl.No.</th>
-                                <th style={{ width: '60%', textAlign: 'left' }}>ವಿವರಗಳು/Particulars</th>
-                                <th style={{ width: '30%' }}>ರೂ./Rs.</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {feeItems.map(item => (
-                                <tr key={item.id}>
-                                    <td className="center">{item.id}.</td>
+                    {isItemReceipt ? (
+                        <table className="physical-table">
+                            <thead>
+                                <tr>
+                                    <th style={{ width: '10%' }}>Sl.No.</th>
+                                    <th style={{ width: '60%', textAlign: 'left' }}>ವಿವರಗಳು/Particulars</th>
+                                    <th style={{ width: '30%' }}>ರೂ./Rs.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td className="center">1.</td>
                                     <td>
-                                        <span className="table-kn">{item.label_kn} / </span>
-                                        <span className="table-en">{item.label_en}</span>
+                                        <span className="table-kn">{itemDetails?.kn || receipt.item_type} / </span>
+                                        <span className="table-en">{itemDetails?.en || receipt.item_type}</span>
                                     </td>
                                     <td className="amount-cell">
-                                        {item.amount > 0 ? `${item.amount}.00` : ''}
+                                        {receipt.amount_paid > 0 ? `${receipt.amount_paid}.00` : ''}
                                     </td>
                                 </tr>
-                            ))}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colSpan={2} className="total-label">
-                                    <span className="kn-bold">ಒಟ್ಟು / </span>
-                                    <span className="en-bold">TOTAL</span>
-                                </td>
-                                <td className="total-amount-val">{receipt.total_amount}.00</td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colSpan={2} className="total-label">
+                                        <span className="kn-bold">ಒಟ್ಟು / </span>
+                                        <span className="en-bold">TOTAL</span>
+                                    </td>
+                                    <td className="total-amount-val">{receipt.amount_paid}.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    ) : (
+                        <table className="physical-table">
+                            <thead>
+                                <tr>
+                                    <th style={{ width: '10%' }}>Sl.No.</th>
+                                    <th style={{ width: '60%', textAlign: 'left' }}>ವಿವರಗಳು/Particulars</th>
+                                    <th style={{ width: '30%' }}>ರೂ./Rs.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {feeItems.map(item => (
+                                    <tr key={item.id}>
+                                        <td className="center">{item.id}.</td>
+                                        <td>
+                                            <span className="table-kn">{item.label_kn} / </span>
+                                            <span className="table-en">{item.label_en}</span>
+                                        </td>
+                                        <td className="amount-cell">
+                                            {item.amount > 0 ? `${item.amount}.00` : ''}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colSpan={2} className="total-label">
+                                        <span className="kn-bold">ಒಟ್ಟು / </span>
+                                        <span className="en-bold">TOTAL</span>
+                                    </td>
+                                    <td className="total-amount-val">{receipt.total_amount}.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    )}
 
                     <div className="words-section">
                         <span className="kn-small">ರೂಪಾಯಿ (ಅಕ್ಷರಗಳಲ್ಲಿ) : </span>

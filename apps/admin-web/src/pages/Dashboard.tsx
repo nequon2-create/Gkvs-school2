@@ -115,10 +115,11 @@ export function Dashboard() {
                 supabase.from('classes').select('*', { count: 'exact', head: true }),
             ]);
 
-            // Fetch fee receipts data
+            // Fetch fee receipts data (strictly active non-cancelled receipts for current academic year)
             let receiptsQuery = supabase
                 .from('fee_receipts')
-                .select('amount_paid, amount_pending, receipt_date');
+                .select('amount_paid, amount_pending, receipt_date, is_cancelled')
+                .or('is_cancelled.is.null,is_cancelled.eq.false');
 
             if (yearId) {
                 receiptsQuery = receiptsQuery.eq('academic_year_id', yearId);
@@ -127,7 +128,18 @@ export function Dashboard() {
             const { data: receipts } = await receiptsQuery;
 
             const totalCollected = receipts?.reduce((sum, r) => sum + (r.amount_paid || 0), 0) || 0;
-            const totalPending = receipts?.reduce((sum, r) => sum + (r.amount_pending || 0), 0) || 0;
+
+            // Compute pending fee from student_fees for current academic year
+            let studentFeesQuery = supabase
+                .from('student_fees')
+                .select('amount_pending');
+
+            if (yearId) {
+                studentFeesQuery = studentFeesQuery.eq('academic_year_id', yearId);
+            }
+
+            const { data: studentFeesData } = await studentFeesQuery;
+            const totalPending = studentFeesData?.reduce((sum, sf) => sum + (sf.amount_pending || 0), 0) || 0;
 
             setStats({
                 totalStudents: studentsCount || 0,
@@ -172,7 +184,8 @@ export function Dashboard() {
                             section
                         )
                     )
-                `);
+                `)
+                .or('is_cancelled.is.null,is_cancelled.eq.false');
 
             if (yearId) {
                 recentReceiptsQuery = recentReceiptsQuery.eq('academic_year_id', yearId);

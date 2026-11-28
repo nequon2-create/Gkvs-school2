@@ -18,6 +18,18 @@ import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 're
 
 type TeacherPreview = { id: string; full_name: string; subjects: string[] | null; photo_url: string | null; qualification: string | null };
 
+type MarksHistoryCard = {
+    examId: string;
+    examName: string;
+    examType: string;
+    examDate: string;
+    totalObtained: number;
+    totalMax: number;
+    percentage: number;
+    grade: string;
+    subjectCount: number;
+};
+
 export default function ParentHomeScreen() {
     const navigation = useNavigation<any>();
     const { user } = useAuthStore();
@@ -33,6 +45,22 @@ export default function ParentHomeScreen() {
     const [studentPhoto, setStudentPhoto] = useState<string | null>(null);
     const [myRatings, setMyRatings] = useState<Record<string, number>>({});
     const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+    
+    // Marks History State
+    const [marksHistory, setMarksHistory] = useState<MarksHistoryCard[]>([]);
+    const [currentAcademicYearName, setCurrentAcademicYearName] = useState<string>('');
+    const [selectedHistoryExamId, setSelectedHistoryExamId] = useState<string | null>(null);
+
+    // Ancillary Items Fee Breakdown & Previous Year Due State
+    const [itemFeesList, setItemFeesList] = useState<{
+        item_type: string;
+        label: string;
+        icon: string;
+        amount_total: number;
+        amount_paid: number;
+        amount_pending: number;
+    }[]>([]);
+    const [previousYearDue, setPreviousYearDue] = useState<number>(0);
     
     // Y offsets for scrolling
     const [homeworkY, setHomeworkY] = useState(0);
@@ -184,12 +212,99 @@ export default function ParentHomeScreen() {
                 const finalCombined = hasMarks ? Math.round((attPercent + marksAverage) / 2) : attPercent;
                 setAcademicStatusPercent(finalCombined);
 
-                // Get current academic year ID first
+                // Get current academic year ID and Name first
                 const { data: yearData } = await supabase
                     .from('academic_years')
-                    .select('id')
+                    .select('id, year_name')
                     .eq('is_current', true)
-                    .single();
+                    .maybeSingle();
+
+                if (yearData) {
+                    setCurrentAcademicYearName(yearData.year_name || '');
+
+                    // Fetch marks card history for current academic year
+                    const { data: studentMarksRecords } = await supabase
+                        .from('marks')
+                        .select(`
+                            id,
+                            exam_id,
+                            marks_obtained,
+                            max_marks,
+                            grade,
+                            exams!inner (
+                                id,
+                                exam_name,
+                                exam_type,
+                                exam_date,
+                                is_published,
+                                academic_year_id
+                            )
+                        `)
+                        .eq('student_id', user.id)
+                        .eq('exams.academic_year_id', yearData.id);
+
+                    if (studentMarksRecords && studentMarksRecords.length > 0) {
+                        const examMap: Record<string, {
+                            examId: string;
+                            examName: string;
+                            examType: string;
+                            examDate: string;
+                            totalObtained: number;
+                            totalMax: number;
+                            subjectCount: number;
+                        }> = {};
+
+                        studentMarksRecords.forEach((rec: any) => {
+                            const ex = rec.exams;
+                            if (!ex) return;
+                            if (!examMap[ex.id]) {
+                                examMap[ex.id] = {
+                                    examId: ex.id,
+                                    examName: ex.exam_name,
+                                    examType: ex.exam_type,
+                                    examDate: ex.exam_date,
+                                    totalObtained: 0,
+                                    totalMax: 0,
+                                    subjectCount: 0,
+                                };
+                            }
+                            examMap[ex.id].totalObtained += (rec.marks_obtained || 0);
+                            examMap[ex.id].totalMax += (rec.max_marks || 100);
+                            examMap[ex.id].subjectCount += 1;
+                        });
+
+                        const historyList: MarksHistoryCard[] = Object.values(examMap).map(item => {
+                            const pct = item.totalMax > 0 ? Math.round((item.totalObtained / item.totalMax) * 100) : 0;
+                            let gr = 'F';
+                            if (pct >= 90) gr = 'A+';
+                            else if (pct >= 80) gr = 'A';
+                            else if (pct >= 70) gr = 'B+';
+                            else if (pct >= 60) gr = 'B';
+                            else if (pct >= 50) gr = 'C';
+                            else if (pct >= 35) gr = 'D';
+
+                            return {
+                                examId: item.examId,
+                                examName: item.examName,
+                                examType: item.examType,
+                                examDate: item.examDate,
+                                totalObtained: item.totalObtained,
+                                totalMax: item.totalMax,
+                                percentage: pct,
+                                grade: gr,
+                                subjectCount: item.subjectCount,
+                            };
+                        });
+
+                        historyList.sort((a, b) => new Date(b.examDate || 0).getTime() - new Date(a.examDate || 0).getTime());
+                        setMarksHistory(historyList);
+                    } else {
+                        setMarksHistory([]);
+                    }
+                } else {
+                    setCurrentAcademicYearName('');
+                    setMarksHistory([]);
+                }
 
                 // Fetch fee info
                 let { data: fees } = await supabase
@@ -257,6 +372,52 @@ export default function ParentHomeScreen() {
                     }
                 } else {
                     setFeeInfo(null);
+                }
+
+                // Fetch 5 Ancillary Items Fees
+                const ANCILLARY_META: Record<string, { label: string; icon: string }> = {
+                    uniform: { label: 'School Dress / Uniform', icon: 'shirt-outline' },
+                    books: { label: 'Books Fee', icon: 'book-outline' },
+                    van: { label: 'Van / Transport Fee', icon: 'bus-outline' },
+                    tie_belt: { label: 'Tie & Belt Fee', icon: 'ribbon-outline' },
+                    shoes: { label: 'Shoes Fee', icon: 'footsteps-outline' },
+                };
+
+                const { data: itemFeesData } = await supabase
+                    .from('student_item_fees')
+                    .select('*')
+                    .eq('student_id', user.id)
+                    .eq('academic_year_id', yearData?.id);
+
+                if (itemFeesData && itemFeesData.length > 0) {
+                    const formatted = itemFeesData.map((item: any) => ({
+                        item_type: item.item_type,
+                        label: ANCILLARY_META[item.item_type]?.label || item.item_type,
+                        icon: ANCILLARY_META[item.item_type]?.icon || 'cube-outline',
+                        amount_total: Number(item.amount_total) || 0,
+                        amount_paid: Number(item.amount_paid) || 0,
+                        amount_pending: Number(item.amount_pending) || 0,
+                    }));
+                    setItemFeesList(formatted);
+                } else {
+                    setItemFeesList([]);
+                }
+
+                // Fetch Previous Academic Year Pending Balance (Carry Forward Due)
+                if (yearData?.id) {
+                    const { data: pastFees } = await supabase
+                        .from('student_fees')
+                        .select('amount_pending, academic_years(is_current)')
+                        .eq('student_id', user.id)
+                        .neq('academic_year_id', yearData.id)
+                        .gt('amount_pending', 0);
+
+                    if (pastFees && pastFees.length > 0) {
+                        const totalPastDue = pastFees.reduce((sum, pf) => sum + (Number(pf.amount_pending) || 0), 0);
+                        setPreviousYearDue(totalPastDue);
+                    } else {
+                        setPreviousYearDue(0);
+                    }
                 }
             }
 
@@ -593,6 +754,138 @@ export default function ParentHomeScreen() {
                     </TouchableOpacity>
                 </View>
 
+                {/* Marks Card History Section */}
+                <View style={{ marginTop: 24, marginBottom: 12 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <Ionicons name="document-text" size={20} color="#C084FC" />
+                            <Text style={styles.sectionHeaderTitle}>Marks Card History</Text>
+                        </View>
+                        {currentAcademicYearName ? (
+                            <View style={{
+                                backgroundColor: 'rgba(168, 85, 247, 0.15)',
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                                borderRadius: 12,
+                                borderWidth: 1,
+                                borderColor: 'rgba(168, 85, 247, 0.3)'
+                            }}>
+                                <Text style={{ color: '#C084FC', fontSize: 12, fontWeight: '700' }}>
+                                    {currentAcademicYearName}
+                                </Text>
+                            </View>
+                        ) : null}
+                    </View>
+
+                    {marksHistory.length === 0 ? (
+                        <View style={[styles.emptyCard, { paddingVertical: 24 }]}>
+                            <Ionicons name="ribbon-outline" size={32} color="rgba(255, 255, 255, 0.25)" />
+                            <Text style={[styles.emptyText, { marginTop: 8 }]}>
+                                {currentAcademicYearName
+                                    ? `No marks cards published yet for ${currentAcademicYearName}`
+                                    : 'No marks cards history found'}
+                            </Text>
+                            <Text style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.4)', marginTop: 4, textAlign: 'center' }}>
+                                Newly published marks cards for this academic year will automatically save and appear here.
+                            </Text>
+                        </View>
+                    ) : (
+                        <View style={{ gap: 12 }}>
+                            {marksHistory.map((item) => {
+                                const gradeColor = item.grade === 'A+' || item.grade === 'A'
+                                    ? '#34D399'
+                                    : item.grade === 'B+' || item.grade === 'B'
+                                    ? '#60A5FA'
+                                    : '#FBBF24';
+
+                                return (
+                                    <TouchableOpacity
+                                        key={item.examId}
+                                        activeOpacity={0.85}
+                                        onPress={() => {
+                                            setSelectedHistoryExamId(item.examId);
+                                            setShowMarksCard(true);
+                                        }}
+                                        style={{
+                                            backgroundColor: '#1E293B',
+                                            borderRadius: 16,
+                                            padding: 16,
+                                            borderWidth: 1,
+                                            borderColor: 'rgba(255, 255, 255, 0.08)',
+                                            shadowColor: '#000',
+                                            shadowOffset: { width: 0, height: 4 },
+                                            shadowOpacity: 0.2,
+                                            shadowRadius: 8,
+                                            elevation: 3,
+                                        }}
+                                    >
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <View style={{ flex: 1, paddingRight: 10 }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                                    <Text style={{ color: '#F8FAFC', fontSize: 16, fontWeight: '700' }}>
+                                                        {item.examName}
+                                                    </Text>
+                                                    <View style={{
+                                                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                                        paddingHorizontal: 8,
+                                                        paddingVertical: 2,
+                                                        borderRadius: 8,
+                                                    }}>
+                                                        <Text style={{ color: '#CBD5E1', fontSize: 11, fontWeight: '600' }}>
+                                                            {item.examType}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                                <Text style={{ color: '#94A3B8', fontSize: 13 }}>
+                                                    {item.examDate ? new Date(item.examDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Academic Year'} • {item.subjectCount} Subjects
+                                                </Text>
+                                            </View>
+
+                                            <View style={{ alignItems: 'flex-end' }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                    <Text style={{ color: gradeColor, fontSize: 22, fontWeight: '800' }}>
+                                                        {item.percentage}%
+                                                    </Text>
+                                                    <View style={{
+                                                        backgroundColor: `${gradeColor}20`,
+                                                        paddingHorizontal: 6,
+                                                        paddingVertical: 2,
+                                                        borderRadius: 6,
+                                                        borderWidth: 1,
+                                                        borderColor: `${gradeColor}40`
+                                                    }}>
+                                                        <Text style={{ color: gradeColor, fontSize: 12, fontWeight: '800' }}>
+                                                            {item.grade}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                                <Text style={{ color: '#64748B', fontSize: 11, marginTop: 2 }}>
+                                                    {item.totalObtained} / {item.totalMax} pts
+                                                </Text>
+                                            </View>
+                                        </View>
+
+                                        <View style={{
+                                            marginTop: 12,
+                                            paddingTop: 10,
+                                            borderTopWidth: 1,
+                                            borderTopColor: 'rgba(255, 255, 255, 0.06)',
+                                            flexDirection: 'row',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center'
+                                        }}>
+                                            <Text style={{ color: '#C084FC', fontSize: 13, fontWeight: '600' }}>
+                                                View Marks Card Report
+                                            </Text>
+                                            <Ionicons name="chevron-forward" size={16} color="#C084FC" />
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    )}
+                </View>
+
                 {/* Teachers Section */}
                 <Text style={styles.sectionHeaderTitle}>👩‍🏫 Teachers</Text>
                 {teachers.length === 0 ? (
@@ -745,73 +1038,148 @@ export default function ParentHomeScreen() {
                                 <Ionicons name="close" size={24} color="#FFFFFF" />
                             </TouchableOpacity>
                         </View>
-                        <View style={styles.modalScroll}>
-                            <Text style={styles.hwDetailTitle}>Academic Session Fees</Text>
-                            
-                            <View style={styles.feeBreakdownRow}>
-                                <View style={styles.feeDetailItem}>
-                                    <View style={[styles.listIconCircle, { backgroundColor: 'rgba(96, 165, 250, 0.1)', marginRight: 12 }]}>
-                                        <Ionicons name="cash" size={18} color="#60A5FA" />
-                                    </View>
-                                    <View>
-                                        <Text style={styles.feeDetailLabel}>Total Amount</Text>
-                                        <Text style={styles.feeDetailValue}>₹{(feeInfo?.total_amount ?? 0).toLocaleString('en-IN')}</Text>
-                                    </View>
+                        <ScrollView style={{ maxHeight: '85%' }} showsVerticalScrollIndicator={false}>
+                            <View style={styles.modalScroll}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Text style={styles.hwDetailTitle}>Academic Session Fees</Text>
+                                    {currentAcademicYearName ? (
+                                        <View style={{ backgroundColor: 'rgba(168, 85, 247, 0.15)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
+                                            <Text style={{ color: '#C084FC', fontSize: 12, fontWeight: '700' }}>{currentAcademicYearName}</Text>
+                                        </View>
+                                    ) : null}
                                 </View>
-                            </View>
 
-                            <View style={styles.feeBreakdownRow}>
-                                <View style={styles.feeDetailItem}>
-                                    <View style={[styles.listIconCircle, { backgroundColor: 'rgba(52, 211, 153, 0.1)', marginRight: 12 }]}>
-                                        <Ionicons name="checkmark-circle" size={18} color="#34D399" />
-                                    </View>
-                                    <View>
-                                        <Text style={styles.feeDetailLabel}>Amount Paid</Text>
-                                        <Text style={[styles.feeDetailValue, { color: '#34D399' }]}>₹{(feeInfo?.amount_paid ?? 0).toLocaleString('en-IN')}</Text>
-                                    </View>
-                                </View>
-                            </View>
-
-                            <View style={styles.feeBreakdownRow}>
-                                <View style={styles.feeDetailItem}>
-                                    <View style={[styles.listIconCircle, { backgroundColor: pendingAmount > 0 ? 'rgba(251, 191, 36, 0.1)' : 'rgba(52, 211, 153, 0.1)', marginRight: 12 }]}>
-                                        <Ionicons name="alert-circle" size={18} color={pendingAmount > 0 ? '#FBBF24' : '#34D399'} />
-                                    </View>
-                                    <View>
-                                        <Text style={styles.feeDetailLabel}>Amount Pending</Text>
-                                        <Text style={[styles.feeDetailValue, { color: pendingAmount > 0 ? '#FBBF24' : '#34D399' }]}>₹{pendingAmount.toLocaleString('en-IN')}</Text>
-                                    </View>
-                                </View>
-                            </View>
-
-                            <View style={{ marginTop: 12, gap: 12 }}>
-                                {pendingAmount > 0 ? (
-                                    <TouchableOpacity
-                                        style={[styles.heroButton, { backgroundColor: '#A855F7', width: '100%', paddingVertical: 14, alignItems: 'center', borderRadius: 14 }]}
-                                        activeOpacity={0.8}
-                                        onPress={() => alert('Online payment gateway integration coming soon!')}
-                                    >
-                                        <Text style={[styles.heroButtonText, { color: '#FFFFFF', fontSize: 14, fontWeight: '700' }]}>Pay Pending Fees</Text>
-                                    </TouchableOpacity>
-                                ) : (
-                                    <View style={styles.allPaidContainer}>
-                                        <Ionicons name="ribbon" size={20} color="#34D399" />
-                                        <Text style={styles.allPaidText}>All academic fees are fully paid!</Text>
+                                {/* Previous Year Due Banner if any */}
+                                {previousYearDue > 0 && (
+                                    <View style={{
+                                        backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                        borderWidth: 1,
+                                        borderColor: 'rgba(239, 68, 68, 0.3)',
+                                        borderRadius: 14,
+                                        padding: 12,
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        gap: 10
+                                    }}>
+                                        <Ionicons name="warning" size={20} color="#F87171" />
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={{ color: '#F87171', fontWeight: '700', fontSize: 13 }}>
+                                                Previous Academic Year Due Balance
+                                            </Text>
+                                            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>
+                                                Carryover Unpaid Dues: ₹{previousYearDue.toLocaleString('en-IN')}
+                                            </Text>
+                                        </View>
                                     </View>
                                 )}
                                 
-                                <TouchableOpacity
-                                    style={[styles.heroButton, { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', width: '100%', paddingVertical: 14, alignItems: 'center', borderRadius: 14 }]}
-                                    activeOpacity={0.8}
-                                    onPress={() => {
-                                        setShowFeeModal(false);
-                                        navigation.navigate('Receipts');
-                                    }}
-                                >
-                                    <Text style={[styles.heroButtonText, { color: '#FFFFFF', fontSize: 14, fontWeight: '700' }]}>View Detailed Receipts</Text>
-                                </TouchableOpacity>
+                                <View style={styles.feeBreakdownRow}>
+                                    <View style={styles.feeDetailItem}>
+                                        <View style={[styles.listIconCircle, { backgroundColor: 'rgba(96, 165, 250, 0.1)', marginRight: 12 }]}>
+                                            <Ionicons name="cash" size={18} color="#60A5FA" />
+                                        </View>
+                                        <View>
+                                            <Text style={styles.feeDetailLabel}>Total Academic Fee</Text>
+                                            <Text style={styles.feeDetailValue}>₹{(feeInfo?.total_amount ?? 0).toLocaleString('en-IN')}</Text>
+                                        </View>
+                                    </View>
+                                </View>
+
+                                <View style={styles.feeBreakdownRow}>
+                                    <View style={styles.feeDetailItem}>
+                                        <View style={[styles.listIconCircle, { backgroundColor: 'rgba(52, 211, 153, 0.1)', marginRight: 12 }]}>
+                                            <Ionicons name="checkmark-circle" size={18} color="#34D399" />
+                                        </View>
+                                        <View>
+                                            <Text style={styles.feeDetailLabel}>Amount Paid</Text>
+                                            <Text style={[styles.feeDetailValue, { color: '#34D399' }]}>₹{(feeInfo?.amount_paid ?? 0).toLocaleString('en-IN')}</Text>
+                                        </View>
+                                    </View>
+                                </View>
+
+                                <View style={styles.feeBreakdownRow}>
+                                    <View style={styles.feeDetailItem}>
+                                        <View style={[styles.listIconCircle, { backgroundColor: pendingAmount > 0 ? 'rgba(251, 191, 36, 0.1)' : 'rgba(52, 211, 153, 0.1)', marginRight: 12 }]}>
+                                            <Ionicons name="alert-circle" size={18} color={pendingAmount > 0 ? '#FBBF24' : '#34D399'} />
+                                        </View>
+                                        <View>
+                                            <Text style={styles.feeDetailLabel}>Current Year Pending</Text>
+                                            <Text style={[styles.feeDetailValue, { color: pendingAmount > 0 ? '#FBBF24' : '#34D399' }]}>₹{pendingAmount.toLocaleString('en-IN')}</Text>
+                                        </View>
+                                    </View>
+                                </View>
+
+                                {/* 5 Ancillary Items Section */}
+                                <View style={{ marginTop: 14 }}>
+                                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#FFFFFF', marginBottom: 12 }}>
+                                        Ancillary Fee Items Breakdown
+                                    </Text>
+                                    {itemFeesList.length === 0 ? (
+                                        <View style={[styles.emptyCard, { paddingVertical: 14, marginBottom: 8 }]}>
+                                            <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>
+                                                No ancillary item fees published for this student.
+                                            </Text>
+                                        </View>
+                                    ) : (
+                                        <View style={{ gap: 8 }}>
+                                            {itemFeesList.map((item) => (
+                                                <TouchableOpacity
+                                                    key={item.item_type}
+                                                    activeOpacity={0.8}
+                                                    onPress={() => {
+                                                        setShowFeeModal(false);
+                                                        navigation.navigate('Receipts', { itemType: item.item_type });
+                                                    }}
+                                                    style={{
+                                                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                                        borderRadius: 14,
+                                                        borderWidth: 1,
+                                                        borderColor: 'rgba(255, 255, 255, 0.08)',
+                                                        padding: 12,
+                                                        flexDirection: 'row',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center'
+                                                    }}
+                                                >
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                                        <View style={[styles.listIconCircle, { backgroundColor: 'rgba(192, 132, 252, 0.1)' }]}>
+                                                            <Ionicons name={item.icon as any} size={18} color="#C084FC" />
+                                                        </View>
+                                                        <View>
+                                                            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>{item.label}</Text>
+                                                            <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 }}>
+                                                                Total: ₹{item.amount_total.toLocaleString('en-IN')}
+                                                            </Text>
+                                                        </View>
+                                                    </View>
+                                                    <View style={{ alignItems: 'flex-end' }}>
+                                                        <Text style={{ color: item.amount_pending > 0 ? '#FBBF24' : '#34D399', fontWeight: '700', fontSize: 13 }}>
+                                                            {item.amount_pending > 0 ? `Due: ₹${item.amount_pending.toLocaleString('en-IN')}` : 'Paid'}
+                                                        </Text>
+                                                        <Text style={{ color: '#34D399', fontSize: 11, marginTop: 2 }}>
+                                                            Paid: ₹{item.amount_paid.toLocaleString('en-IN')}
+                                                        </Text>
+                                                    </View>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    )}
+                                </View>
+
+                                <View style={{ marginTop: 16, gap: 12 }}>
+                                    <TouchableOpacity
+                                        style={[styles.heroButton, { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', width: '100%', paddingVertical: 14, alignItems: 'center', borderRadius: 14 }]}
+                                        activeOpacity={0.8}
+                                        onPress={() => {
+                                            setShowFeeModal(false);
+                                            navigation.navigate('Receipts');
+                                        }}
+                                    >
+                                        <Text style={[styles.heroButtonText, { color: '#FFFFFF', fontSize: 14, fontWeight: '700' }]}>View All Receipts</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
-                        </View>
+                        </ScrollView>
                     </View>
                 </View>
             </Modal>
@@ -821,8 +1189,11 @@ export default function ParentHomeScreen() {
                 <MarksCard
                     visible={showMarksCard}
                     studentId={user.id}
-                    examId={null}
-                    onClose={() => setShowMarksCard(false)}
+                    examId={selectedHistoryExamId}
+                    onClose={() => {
+                        setShowMarksCard(false);
+                        setSelectedHistoryExamId(null);
+                    }}
                 />
             )}
 

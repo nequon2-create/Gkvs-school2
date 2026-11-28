@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { X, Layers, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { AppleDateTimePicker } from '../common/AppleDateTimePicker';
 
 interface SubjectSchedule {
     subject_id: string;
@@ -29,7 +31,6 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
     }, []);
 
     const fetchData = async () => {
-        // Fetch classes
         const { data: classesData } = await supabase
             .from('classes')
             .select('id, class_name, section')
@@ -37,7 +38,6 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
             .order('class_name', { ascending: true });
         setClasses(classesData || []);
 
-        // Fetch academic years
         const { data: yearsData } = await supabase
             .from('academic_years')
             .select('id, year_name')
@@ -61,13 +61,11 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
             .order('subject_name');
 
         if (subjectsData) {
-            // Sort to prioritize class-specific subjects over global ones
             const sorted = [...subjectsData].sort((a: any, b: any) => {
                 if (a.class_id && !b.class_id) return -1;
                 if (!a.class_id && b.class_id) return 1;
                 return 0;
             });
-            // Deduplicate by name key
             const unique: any[] = [];
             const seen = new Set();
             for (const item of sorted) {
@@ -77,11 +75,16 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
                     unique.push(item);
                 }
             }
+            // Default tomorrow's date for ease of scheduling
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const defaultDateStr = tomorrow.toISOString().split('T')[0];
+
             const initialSchedules: SubjectSchedule[] = unique.map((s) => ({
                 subject_id: s.id,
                 subject_name: s.subject_name,
-                date: '',
-                time: '09:00',
+                date: defaultDateStr,
+                time: '09:30',
                 selected: false,
             }));
             setSchedules(initialSchedules);
@@ -98,13 +101,13 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
 
     const handlePublish = async () => {
         if (!examName || !examType || !selectedYear || !selectedClass) {
-            alert('Please fill all required fields');
+            alert('Please fill all required fields (Exam Name, Type, Academic Year, and Class).');
             return;
         }
 
         const selectedSchedules = schedules.filter((s) => s.selected && s.date);
         if (selectedSchedules.length === 0) {
-            alert('Please select at least one subject with a date');
+            alert('Please check at least one subject and set its date & time.');
             return;
         }
 
@@ -120,7 +123,7 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
             const { data: timetableData, error: timetableError } = await supabase
                 .from('exam_timetables')
                 .insert({
-                    exam_name: examName,
+                    exam_name: examName.trim(),
                     exam_type: examType,
                     class_id: selectedClass,
                     academic_year_id: selectedYear,
@@ -138,7 +141,7 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
                 exam_timetable_id: timetableData.id,
                 subject_id: s.subject_id,
                 exam_date: s.date,
-                exam_time: s.time,
+                exam_time: s.time || '09:30',
                 duration_minutes: 60,
             }));
 
@@ -148,11 +151,11 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
 
             if (schedulesError) throw schedulesError;
 
-            alert('Exam timetable published successfully!');
+            alert('✅ Exam timetable published successfully!');
             onSuccess();
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error publishing exam:', err);
-            alert('Failed to publish exam timetable');
+            alert('Failed to publish exam timetable: ' + (err.message || 'Unknown error'));
         } finally {
             setPublishing(false);
         }
@@ -166,7 +169,9 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                background: 'rgba(0,0,0,0.5)',
+                background: 'rgba(0, 0, 0, 0.45)',
+                backdropFilter: 'blur(24px)',
+                WebkitBackdropFilter: 'blur(24px)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -178,51 +183,80 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
             <div
                 onClick={(e) => e.stopPropagation()}
                 style={{
-                    background: '#fff',
+                    background: '#FFFFFF',
                     borderRadius: '24px',
-                    padding: '40px',
-                    maxWidth: '700px',
+                    padding: '36px',
+                    maxWidth: '760px',
                     width: '100%',
                     maxHeight: '90vh',
                     overflowY: 'auto',
+                    boxShadow: '0 24px 64px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.06)',
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
                 }}
             >
-                <h2
-                    style={{
-                        fontSize: '28px',
-                        fontWeight: '700',
-                        color: '#1D1D1F',
-                        marginBottom: '32px',
-                    }}
-                >
-                    Create Exam Timetable
-                </h2>
-
-                {/* Basic Info */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
                     <div>
-                        <label style={{ display: 'block', fontSize: '13px', color: '#86868B', marginBottom: '8px' }}>
-                            Exam Name *
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'rgba(0,113,227,0.08)', borderRadius: '980px', color: '#0071E3', fontSize: '12px', fontWeight: '600', marginBottom: '8px' }}>
+                            <Sparkles size={13} />
+                            <span>Apple Timetable Creator</span>
+                        </div>
+                        <h2 style={{ fontSize: '26px', fontWeight: '700', color: '#1D1D1F', margin: 0, letterSpacing: '-0.02em' }}>
+                            Create Exam Timetable
+                        </h2>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#86868B' }}>
+                            Set up exam info and scroll to pick date & time for each subject.
+                        </p>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            border: 'none',
+                            background: '#F5F5F7',
+                            color: '#86868B',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                        }}
+                    >
+                        <X size={18} />
+                    </button>
+                </div>
+
+                {/* Basic Info Fields */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1D1D1F', marginBottom: '6px' }}>
+                            Exam Name <span style={{ color: '#FF3B30' }}>*</span>
                         </label>
                         <input
                             type="text"
                             value={examName}
                             onChange={(e) => setExamName(e.target.value)}
-                            placeholder="e.g., First Term FA1"
+                            placeholder="e.g., First Term FA1 / Final Exam"
                             style={{
                                 width: '100%',
                                 height: '44px',
-                                padding: '0 16px',
-                                borderRadius: '10px',
-                                border: '1px solid rgba(0,0,0,0.1)',
+                                padding: '0 14px',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(0,0,0,0.12)',
+                                background: '#FBFBFC',
                                 fontSize: '15px',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                transition: 'all 0.2s ease',
                             }}
                         />
                     </div>
 
                     <div>
-                        <label style={{ display: 'block', fontSize: '13px', color: '#86868B', marginBottom: '8px' }}>
-                            Exam Type *
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1D1D1F', marginBottom: '6px' }}>
+                            Exam Type <span style={{ color: '#FF3B30' }}>*</span>
                         </label>
                         <select
                             value={examType}
@@ -230,27 +264,32 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
                             style={{
                                 width: '100%',
                                 height: '44px',
-                                padding: '0 16px',
-                                borderRadius: '10px',
-                                border: '1px solid rgba(0,0,0,0.1)',
+                                padding: '0 14px',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(0,0,0,0.12)',
+                                background: '#FBFBFC',
                                 fontSize: '15px',
+                                outline: 'none',
+                                boxSizing: 'border-box',
                             }}
                         >
-                            <option value="">Select Type</option>
-                            <option value="FA1">FA1</option>
-                            <option value="FA2">FA2</option>
-                            <option value="FA3">FA3</option>
-                            <option value="FA4">FA4</option>
-                            <option value="SA1">SA1</option>
-                            <option value="SA2">SA2</option>
+                            <option value="">Select Exam Type</option>
+                            <option value="FA1">Formative Assessment 1 (FA1)</option>
+                            <option value="FA2">Formative Assessment 2 (FA2)</option>
+                            <option value="FA3">Formative Assessment 3 (FA3)</option>
+                            <option value="FA4">Formative Assessment 4 (FA4)</option>
+                            <option value="SA1">Summative Assessment 1 (SA1)</option>
+                            <option value="SA2">Summative Assessment 2 (SA2)</option>
+                            <option value="Mid-Term">Mid-Term Exam</option>
+                            <option value="Final">Final Board/Annual Exam</option>
                         </select>
                     </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '28px' }}>
                     <div>
-                        <label style={{ display: 'block', fontSize: '13px', color: '#86868B', marginBottom: '8px' }}>
-                            Academic Year *
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1D1D1F', marginBottom: '6px' }}>
+                            Academic Year <span style={{ color: '#FF3B30' }}>*</span>
                         </label>
                         <select
                             value={selectedYear}
@@ -258,13 +297,16 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
                             style={{
                                 width: '100%',
                                 height: '44px',
-                                padding: '0 16px',
-                                borderRadius: '10px',
-                                border: '1px solid rgba(0,0,0,0.1)',
+                                padding: '0 14px',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(0,0,0,0.12)',
+                                background: '#FBFBFC',
                                 fontSize: '15px',
+                                outline: 'none',
+                                boxSizing: 'border-box',
                             }}
                         >
-                            <option value="">Select Year</option>
+                            <option value="">Select Academic Year</option>
                             {academicYears.map((year) => (
                                 <option key={year.id} value={year.id}>
                                     {year.year_name}
@@ -274,8 +316,8 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
                     </div>
 
                     <div>
-                        <label style={{ display: 'block', fontSize: '13px', color: '#86868B', marginBottom: '8px' }}>
-                            Class *
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1D1D1F', marginBottom: '6px' }}>
+                            Class Target <span style={{ color: '#FF3B30' }}>*</span>
                         </label>
                         <select
                             value={selectedClass}
@@ -283,31 +325,63 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
                             style={{
                                 width: '100%',
                                 height: '44px',
-                                padding: '0 16px',
-                                borderRadius: '10px',
-                                border: '1px solid rgba(0,0,0,0.1)',
+                                padding: '0 14px',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(0,0,0,0.12)',
+                                background: '#FBFBFC',
                                 fontSize: '15px',
+                                outline: 'none',
+                                boxSizing: 'border-box',
                             }}
                         >
                             <option value="">Select Class</option>
                             {classes.map((cls) => (
                                 <option key={cls.id} value={cls.id}>
-                                    {cls.class_name} {cls.section && `- ${cls.section}`}
+                                    {cls.class_name} {cls.section ? `(${cls.section})` : ''}
                                 </option>
                             ))}
                         </select>
                     </div>
                 </div>
 
-                {/* Subjects Schedule */}
+                {/* Subject Schedule Section */}
                 <div style={{ marginBottom: '32px' }}>
-                    <h3 style={{ fontSize: '17px', fontWeight: '600', marginBottom: '16px' }}>
-                        Select Subjects & Schedule
-                    </h3>
-                    <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                        <div>
+                            <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#1D1D1F', margin: 0 }}>
+                                Subject Schedules
+                            </h3>
+                            <span style={{ fontSize: '13px', color: '#86868B' }}>
+                                Select subjects and scroll to pick exam date & time.
+                            </span>
+                        </div>
+                        {schedules.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const allSelected = schedules.every((s) => s.selected);
+                                    setSchedules((prev) => prev.map((s) => ({ ...s, selected: !allSelected })));
+                                }}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#0071E3',
+                                    fontSize: '13px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    padding: '4px 8px',
+                                }}
+                            >
+                                {schedules.every((s) => s.selected) ? 'Deselect All' : 'Select All'}
+                            </button>
+                        )}
+                    </div>
+
+                    <div style={{ maxHeight: '360px', overflowY: 'auto', paddingRight: '4px' }}>
                         {schedules.length === 0 ? (
-                            <div style={{ color: '#86868B', fontSize: '14px', textAlign: 'center', padding: '24px', background: '#F5F5F7', borderRadius: '12px' }}>
-                                {selectedClass ? 'No subjects found for the selected class.' : 'Please select a class to load subjects.'}
+                            <div style={{ color: '#86868B', fontSize: '14px', textAlign: 'center', padding: '36px', background: '#F5F5F7', borderRadius: '16px' }}>
+                                <Layers size={24} style={{ color: '#86868B', marginBottom: '8px', opacity: 0.6 }} />
+                                <div>{selectedClass ? 'No subjects found for this class.' : 'Please choose a class above to load subjects.'}</div>
                             </div>
                         ) : (
                             schedules.map((schedule) => (
@@ -315,94 +389,93 @@ export function CreateExamModal({ onClose, onSuccess }: CreateExamModalProps) {
                                     key={schedule.subject_id}
                                     style={{
                                         padding: '16px',
-                                        background: schedule.selected ? '#E8F4FF' : '#F5F5F7',
-                                        borderRadius: '12px',
+                                        background: schedule.selected ? 'rgba(0, 113, 227, 0.04)' : '#F5F5F7',
+                                        borderRadius: '16px',
                                         marginBottom: '12px',
-                                        border: schedule.selected ? '2px solid #0071E3' : '2px solid transparent',
+                                        border: schedule.selected ? '1.5px solid #0071E3' : '1.5px solid transparent',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '16px',
+                                        transition: 'all 0.2s ease',
                                     }}
                                 >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1 }}>
                                         <input
                                             type="checkbox"
                                             checked={schedule.selected}
                                             onChange={(e) =>
                                                 handleScheduleChange(schedule.subject_id, 'selected', e.target.checked)
                                             }
-                                            style={{ width: '20px', height: '20px' }}
+                                            style={{
+                                                width: '20px',
+                                                height: '20px',
+                                                accentColor: '#0071E3',
+                                                cursor: 'pointer',
+                                            }}
                                         />
-                                        <div style={{ flex: 1 }}>
+                                        <div>
                                             <div style={{ fontSize: '15px', fontWeight: '600', color: '#1D1D1F' }}>
                                                 {schedule.subject_name}
                                             </div>
+                                            <div style={{ fontSize: '12px', color: '#86868B' }}>
+                                                {schedule.selected ? 'Scheduled for exam' : 'Not included'}
+                                            </div>
                                         </div>
-                                        {schedule.selected && (
-                                            <>
-                                                <input
-                                                    type="date"
-                                                    value={schedule.date}
-                                                    onChange={(e) =>
-                                                        handleScheduleChange(schedule.subject_id, 'date', e.target.value)
-                                                    }
-                                                    style={{
-                                                        padding: '8px 12px',
-                                                        borderRadius: '8px',
-                                                        border: '1px solid rgba(0,0,0,0.1)',
-                                                        fontSize: '14px',
-                                                    }}
-                                                />
-                                                <input
-                                                    type="time"
-                                                    value={schedule.time}
-                                                    onChange={(e) =>
-                                                        handleScheduleChange(schedule.subject_id, 'time', e.target.value)
-                                                    }
-                                                    style={{
-                                                        padding: '8px 12px',
-                                                        borderRadius: '8px',
-                                                        border: '1px solid rgba(0,0,0,0.1)',
-                                                        fontSize: '14px',
-                                                    }}
-                                                />
-                                            </>
-                                        )}
-                                    </div>
+                                    </label>
+
+                                    {schedule.selected && (
+                                        <div style={{ width: '280px' }}>
+                                            <AppleDateTimePicker
+                                                dateValue={schedule.date}
+                                                timeValue={schedule.time}
+                                                onDateChange={(newDate) => handleScheduleChange(schedule.subject_id, 'date', newDate)}
+                                                onTimeChange={(newTime) => handleScheduleChange(schedule.subject_id, 'time', newTime)}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             ))
                         )}
                     </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div style={{ display: 'flex', gap: '12px' }}>
+                {/* Footer Buttons */}
+                <div style={{ display: 'flex', gap: '12px', paddingTop: '16px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
                     <button
+                        type="button"
                         onClick={onClose}
                         style={{
                             flex: 1,
-                            padding: '14px',
-                            background: 'rgba(0,0,0,0.03)',
-                            border: '1px solid rgba(0,0,0,0.1)',
+                            height: '46px',
+                            background: '#F5F5F7',
+                            border: '1px solid rgba(0,0,0,0.06)',
                             borderRadius: '12px',
                             fontSize: '15px',
                             fontWeight: '500',
+                            color: '#1D1D1F',
                             cursor: 'pointer',
+                            transition: 'all 0.15s ease',
                         }}
                     >
                         Cancel
                     </button>
                     <button
+                        type="button"
                         onClick={handlePublish}
                         disabled={publishing}
                         style={{
-                            flex: 1,
-                            padding: '14px',
-                            background: publishing ? '#86868B' : '#0071E3',
-                            color: '#fff',
+                            flex: 1.5,
+                            height: '46px',
+                            background: publishing ? '#8E8E93' : '#0071E3',
+                            color: '#FFFFFF',
                             border: 'none',
                             borderRadius: '12px',
                             fontSize: '15px',
                             fontWeight: '600',
                             cursor: publishing ? 'not-allowed' : 'pointer',
                             boxShadow: '0 2px 8px rgba(0,113,227,0.3)',
+                            transition: 'all 0.15s ease',
                         }}
                     >
                         {publishing ? 'Publishing...' : 'Publish Timetable'}

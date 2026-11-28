@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { CreateExamModal } from '../components/exams/CreateExamModal';
+import { EditExamModal } from '../components/exams/EditExamModal';
 import { ExamDetailsModal } from '../components/exams/ExamDetailsModal';
+import { Edit2, Trash2 } from 'lucide-react';
 
 interface ExamTimetable {
     id: string;
@@ -25,6 +27,7 @@ export function ExamsPage() {
     const [exams, setExams] = useState<ExamTimetable[]>([]);
     const [showCreate, setShowCreate] = useState(false);
     const [selectedExam, setSelectedExam] = useState<string | null>(null);
+    const [editingExamId, setEditingExamId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -33,18 +36,28 @@ export function ExamsPage() {
 
     const fetchExams = async () => {
         try {
+            setLoading(true);
+            const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+            // 1. Auto-cleanup: remove exam timetables older than 30 days (1 month) from database
+            await supabase
+                .from('exam_timetables')
+                .delete()
+                .lt('end_date', oneMonthAgo);
+
+            // 2. Fetch active exam timetables
             const { data, error } = await supabase
                 .from('exam_timetables')
                 .select(`
-          id,
-          exam_name,
-          exam_type,
-          start_date,
-          end_date,
-          classes (class_name, section)
-        `)
+                    id,
+                    exam_name,
+                    exam_type,
+                    start_date,
+                    end_date,
+                    classes (class_name, section)
+                `)
                 .eq('is_published', true)
-                .gte('end_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) // Last 30 days
+                .gte('end_date', oneMonthAgo)
                 .order('start_date', { ascending: true });
 
             if (error) throw error;
@@ -54,6 +67,25 @@ export function ExamsPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleDeleteExam = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!window.confirm('Are you sure you want to delete this exam timetable?')) return;
+        try {
+            const { error } = await supabase.from('exam_timetables').delete().eq('id', id);
+            if (error) throw error;
+            setExams((prev) => prev.filter((ex) => ex.id !== id));
+            if (selectedExam === id) setSelectedExam(null);
+            if (editingExamId === id) setEditingExamId(null);
+        } catch (err: any) {
+            alert('Failed to delete exam timetable: ' + (err.message || 'Unknown error'));
+        }
+    };
+
+    const handleEditExam = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setEditingExamId(id);
     };
 
     return (
@@ -182,20 +214,65 @@ export function ExamsPage() {
 
                             {/* Content */}
                             <div style={{ position: 'relative', zIndex: 1 }}>
-                                <div
-                                    style={{
-                                        display: 'inline-block',
-                                        padding: '6px 16px',
-                                        background: 'rgba(255,255,255,0.25)',
-                                        borderRadius: '20px',
-                                        fontSize: '12px',
-                                        fontWeight: '600',
-                                        color: '#fff',
-                                        marginBottom: '16px',
-                                        backdropFilter: 'blur(10px)',
-                                    }}
-                                >
-                                    {exam.exam_type}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                    <div
+                                        style={{
+                                            display: 'inline-block',
+                                            padding: '6px 16px',
+                                            background: 'rgba(255,255,255,0.25)',
+                                            borderRadius: '20px',
+                                            fontSize: '12px',
+                                            fontWeight: '600',
+                                            color: '#fff',
+                                            backdropFilter: 'blur(10px)',
+                                        }}
+                                    >
+                                        {exam.exam_type}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => handleEditExam(exam.id, e)}
+                                            title="Edit Exam Timetable"
+                                            style={{
+                                                width: '32px',
+                                                height: '32px',
+                                                borderRadius: '50%',
+                                                border: 'none',
+                                                background: 'rgba(255,255,255,0.25)',
+                                                backdropFilter: 'blur(10px)',
+                                                color: '#fff',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                cursor: 'pointer',
+                                                transition: 'transform 0.15s ease',
+                                            }}
+                                        >
+                                            <Edit2 size={14} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => handleDeleteExam(exam.id, e)}
+                                            title="Delete Exam Timetable"
+                                            style={{
+                                                width: '32px',
+                                                height: '32px',
+                                                borderRadius: '50%',
+                                                border: 'none',
+                                                background: 'rgba(255,59,48,0.3)',
+                                                backdropFilter: 'blur(10px)',
+                                                color: '#fff',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                cursor: 'pointer',
+                                                transition: 'transform 0.15s ease',
+                                            }}
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <h3
@@ -267,6 +344,19 @@ export function ExamsPage() {
                     examId={selectedExam}
                     onClose={() => setSelectedExam(null)}
                     onUpdate={fetchExams}
+                    onEdit={() => setEditingExamId(selectedExam)}
+                />
+            )}
+
+            {/* Edit Exam Modal */}
+            {editingExamId && (
+                <EditExamModal
+                    examId={editingExamId}
+                    onClose={() => setEditingExamId(null)}
+                    onSuccess={() => {
+                        setEditingExamId(null);
+                        fetchExams();
+                    }}
                 />
             )}
         </div>

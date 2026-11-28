@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { usePhotoLightbox } from '../context/PhotoLightboxContext';
 import { UploadMarksModal } from '../components/marks/UploadMarksModal';
 import { MarksCard } from '../components/marks/MarksCard';
 
@@ -20,17 +21,21 @@ interface Student {
     id: string;
     full_name: string;
     registration_number: string;
+    gender?: string;
+    class_id?: string;
     photo_url?: string;
     classes?: { class_name: string };
     avgMarks: number;
 }
 
 export function MarksPage() {
+    const { openPhoto } = usePhotoLightbox();
     const [selectedClass, setSelectedClass] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedYear, setSelectedYear] = useState('');
     const [selectedExam, setSelectedExam] = useState('');
     const [selectedFilterClass, setSelectedFilterClass] = useState('');
+    const [selectedGender, setSelectedGender] = useState('all');
     const [students, setStudents] = useState<Student[]>([]);
     const [classes, setClasses] = useState<any[]>([]);
     const [academicYears, setAcademicYears] = useState<any[]>([]);
@@ -101,35 +106,26 @@ export function MarksPage() {
         id,
         full_name,
         registration_number,
+        gender,
         photo_url,
+        class_id,
         classes (class_name)
       `)
             .eq('academic_year_id', currentYear.id)
             .eq('is_active', true);
 
-        // Calculate average marks for each student based on their latest exam
+        // Calculate average marks for each student based on all marks for this academic year
         const studentsWithAvg = await Promise.all(
             (data || []).map(async (student) => {
-                // Get latest exam for this student
-                const { data: latestMark } = await supabase
+                const { data: marks } = await supabase
                     .from('marks')
-                    .select('exam_id')
-                    .eq('student_id', student.id)
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
+                    .select('marks_obtained, max_marks')
+                    .eq('student_id', student.id);
 
                 let avgMarks = 0;
-
-                if (latestMark) {
-                    const { data: marks } = await supabase
-                        .from('marks')
-                        .select('marks_obtained, max_marks')
-                        .eq('student_id', student.id)
-                        .eq('exam_id', latestMark.exam_id);
-
-                    const total = marks?.reduce((sum, m) => sum + m.marks_obtained, 0) || 0;
-                    const totalMax = marks?.reduce((sum, m) => sum + (m.max_marks || 100), 0) || 0;
+                if (marks && marks.length > 0) {
+                    const total = marks.reduce((sum, m) => sum + (m.marks_obtained || 0), 0);
+                    const totalMax = marks.reduce((sum, m) => sum + (m.max_marks || 100), 0);
                     avgMarks = totalMax > 0 ? Math.round((total / totalMax) * 100) : 0;
                 }
 
@@ -152,17 +148,22 @@ export function MarksPage() {
     const [resolvedExamId, setResolvedExamId] = useState<string | null>(null);
 
     const handleApplyFilter = async () => {
-        let currentExamId = null;
+        let currentExamId: string | null = null;
 
         // Try to find the exact exam UUID based on selected filters
-        if (selectedExam && selectedFilterClass && selectedYear) {
-            const { data: examData } = await supabase
+        if (selectedExam && selectedYear) {
+            let examQuery = supabase
                 .from('exams')
                 .select('id')
-                .eq('exam_type', selectedExam)
-                .eq('class_id', selectedFilterClass)
-                .eq('academic_year_id', selectedYear)
-                .maybeSingle();
+                .eq('academic_year_id', selectedYear);
+
+            if (selectedFilterClass) {
+                examQuery = examQuery.eq('class_id', selectedFilterClass);
+            }
+
+            examQuery = examQuery.or(`id.eq.${selectedExam},exam_type.eq.${selectedExam},exam_name.eq.${selectedExam}`);
+
+            const { data: examData } = await examQuery.limit(1).maybeSingle();
 
             if (examData) {
                 currentExamId = examData.id;
@@ -171,14 +172,16 @@ export function MarksPage() {
 
         setResolvedExamId(currentExamId);
 
-        // Fetch students with marks for selected exam
+        // Fetch students with marks for selected filters
         let query = supabase.from('students').select(`
-      id,
-      full_name,
-      registration_number,
-      photo_url,
-      classes (class_name)
-    `);
+            id,
+            full_name,
+            registration_number,
+            gender,
+            photo_url,
+            class_id,
+            classes (class_name)
+        `);
 
         query = query.eq('is_active', true);
 
@@ -193,14 +196,19 @@ export function MarksPage() {
         const { data: studentsData } = await query;
 
         // Fetch marks for selected exam
-        if (currentExamId && studentsData) {
+        if (studentsData) {
             const studentsWithMarks = await Promise.all(
                 studentsData.map(async (student) => {
-                    const { data: examMarks } = await supabase
+                    let marksQuery = supabase
                         .from('marks')
                         .select('marks_obtained, max_marks')
-                        .eq('student_id', student.id)
-                        .eq('exam_id', currentExamId);
+                        .eq('student_id', student.id);
+
+                    if (currentExamId) {
+                        marksQuery = marksQuery.eq('exam_id', currentExamId);
+                    }
+
+                    const { data: examMarks } = await marksQuery;
 
                     const total = examMarks?.reduce((sum, m) => sum + m.marks_obtained, 0) || 0;
                     const totalMax = examMarks?.reduce((sum, m) => sum + (m.max_marks || 100), 0) || 0;
@@ -215,15 +223,6 @@ export function MarksPage() {
             );
 
             setStudents(studentsWithMarks);
-        } else if (studentsData) {
-            // If no exam is resolved, just show 0 avg marks mapped
-            setStudents(
-                studentsData.map(s => ({
-                    ...s,
-                    classes: Array.isArray(s.classes) ? s.classes[0] : s.classes,
-                    avgMarks: 0
-                } as Student))
-            );
         }
     };
 
@@ -1004,13 +1003,23 @@ export function MarksPage() {
                             </div>
 
                             <div style={{ overflowX: 'auto', width: '100%', border: '1px solid #E5E7EB', borderRadius: '12px', marginBottom: '32px' }}>
-                                <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
+                                <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: `${470 + visibleSubjects.length * 120 + 220}px` }}>
+                                    <colgroup>
+                                        <col style={{ width: '48px', minWidth: '48px' }} />
+                                        <col style={{ width: '130px', minWidth: '130px' }} />
+                                        <col style={{ width: '72px', minWidth: '72px' }} />
+                                        <col style={{ width: '220px', minWidth: '220px' }} />
+                                        {visibleSubjects.map((sub) => (
+                                            <col key={sub.id} style={{ width: '120px', minWidth: '120px' }} />
+                                        ))}
+                                        <col style={{ minWidth: '220px' }} />
+                                    </colgroup>
                                     <thead>
                                         <tr style={{ background: '#F8F9FA' }}>
-                                            <th style={{ position: 'sticky', left: 0, zIndex: 11, background: '#F8F9FA', textAlign: 'center', padding: '12px', fontSize: '14px', fontWeight: '600', color: '#4B5563', width: '50px', borderBottom: '2px solid #E5E7EB', borderRight: '1px solid #E5E7EB' }}>#</th>
-                                            <th style={{ position: 'sticky', left: '50px', zIndex: 11, background: '#F8F9FA', textAlign: 'left', padding: '12px', fontSize: '14px', fontWeight: '600', color: '#4B5563', width: '140px', borderBottom: '2px solid #E5E7EB', borderRight: '1px solid #E5E7EB' }}>Reg ID</th>
-                                            <th style={{ position: 'sticky', left: '190px', zIndex: 11, background: '#F8F9FA', textAlign: 'left', padding: '12px', fontSize: '14px', fontWeight: '600', color: '#4B5563', width: '80px', borderBottom: '2px solid #E5E7EB', borderRight: '1px solid #E5E7EB' }}>Roll No</th>
-                                            <th style={{ position: 'sticky', left: '270px', zIndex: 11, background: '#F8F9FA', textAlign: 'left', padding: '12px', fontSize: '14px', fontWeight: '600', color: '#4B5563', width: '180px', minWidth: '180px', borderBottom: '2px solid #E5E7EB', borderRight: '2px solid #D1D5DB' }}>Student Name</th>
+                                            <th style={{ position: 'sticky', left: 0, zIndex: 11, background: '#F8F9FA', textAlign: 'center', padding: '12px 6px', fontSize: '14px', fontWeight: '600', color: '#4B5563', width: '48px', minWidth: '48px', maxWidth: '48px', borderBottom: '2px solid #E5E7EB', borderRight: '1px solid #E5E7EB', boxSizing: 'border-box' }}>#</th>
+                                            <th style={{ position: 'sticky', left: '48px', zIndex: 11, background: '#F8F9FA', textAlign: 'left', padding: '12px', fontSize: '14px', fontWeight: '600', color: '#4B5563', width: '130px', minWidth: '130px', maxWidth: '130px', borderBottom: '2px solid #E5E7EB', borderRight: '1px solid #E5E7EB', boxSizing: 'border-box' }}>Reg ID</th>
+                                            <th style={{ position: 'sticky', left: '178px', zIndex: 11, background: '#F8F9FA', textAlign: 'left', padding: '12px', fontSize: '14px', fontWeight: '600', color: '#4B5563', width: '72px', minWidth: '72px', maxWidth: '72px', borderBottom: '2px solid #E5E7EB', borderRight: '1px solid #E5E7EB', boxSizing: 'border-box' }}>Roll No</th>
+                                            <th style={{ position: 'sticky', left: '250px', zIndex: 11, background: '#F8F9FA', textAlign: 'left', padding: '12px', fontSize: '14px', fontWeight: '600', color: '#4B5563', width: '220px', minWidth: '220px', maxWidth: '220px', borderBottom: '2px solid #E5E7EB', borderRight: '2px solid #D1D5DB', boxShadow: '4px 0 8px rgba(0,0,0,0.06)', boxSizing: 'border-box' }}>Student Name</th>
                                             
                                             {/* Dynamic Subject Headers with editable Max Marks */}
                                             {visibleSubjects.map((sub) => (
@@ -1054,16 +1063,16 @@ export function MarksPage() {
                                                         transition: 'background-color 0.1s'
                                                     }}
                                                 >
-                                                    <td style={{ position: 'sticky', left: 0, zIndex: 9, background: rowBg, textAlign: 'center', padding: '12px', fontSize: '14px', color: '#6B7280', borderBottom: '1px solid #E5E7EB', borderRight: '1px solid #E5E7EB' }}>
+                                                    <td style={{ position: 'sticky', left: 0, zIndex: 9, background: rowBg, textAlign: 'center', padding: '12px 6px', fontSize: '14px', color: '#6B7280', width: '48px', minWidth: '48px', maxWidth: '48px', borderBottom: '1px solid #E5E7EB', borderRight: '1px solid #E5E7EB', boxSizing: 'border-box' }}>
                                                         {index + 1}
                                                     </td>
-                                                    <td style={{ position: 'sticky', left: '50px', zIndex: 9, background: rowBg, padding: '12px', fontSize: '14px', color: '#4B5563', fontFamily: 'monospace', borderBottom: '1px solid #E5E7EB', borderRight: '1px solid #E5E7EB' }}>
+                                                    <td style={{ position: 'sticky', left: '48px', zIndex: 9, background: rowBg, padding: '12px', fontSize: '14px', color: '#4B5563', fontFamily: 'monospace', width: '130px', minWidth: '130px', maxWidth: '130px', borderBottom: '1px solid #E5E7EB', borderRight: '1px solid #E5E7EB', boxSizing: 'border-box', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={student.registration_number || 'N/A'}>
                                                         {student.registration_number || 'N/A'}
                                                     </td>
-                                                    <td style={{ position: 'sticky', left: '190px', zIndex: 9, background: rowBg, padding: '12px', fontSize: '14px', color: '#4B5563', borderBottom: '1px solid #E5E7EB', borderRight: '1px solid #E5E7EB' }}>
+                                                    <td style={{ position: 'sticky', left: '178px', zIndex: 9, background: rowBg, padding: '12px', fontSize: '14px', color: '#4B5563', width: '72px', minWidth: '72px', maxWidth: '72px', borderBottom: '1px solid #E5E7EB', borderRight: '1px solid #E5E7EB', boxSizing: 'border-box' }}>
                                                         {student.roll_number || '-'}
                                                     </td>
-                                                    <td style={{ position: 'sticky', left: '270px', zIndex: 9, background: rowBg, padding: '12px', fontSize: '15px', fontWeight: '500', color: '#1D1D1F', width: '180px', minWidth: '180px', borderBottom: '1px solid #E5E7EB', borderRight: '2px solid #D1D5DB' }}>
+                                                    <td style={{ position: 'sticky', left: '250px', zIndex: 9, background: rowBg, padding: '12px', fontSize: '15px', fontWeight: '500', color: '#1D1D1F', width: '220px', minWidth: '220px', maxWidth: '220px', borderBottom: '1px solid #E5E7EB', borderRight: '2px solid #D1D5DB', boxShadow: '4px 0 8px rgba(0,0,0,0.06)', boxSizing: 'border-box', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={student.full_name}>
                                                         {student.full_name}
                                                     </td>
 
@@ -1216,11 +1225,16 @@ export function MarksPage() {
         );
     };
 
-    const filteredStudents = students.filter(
-        (s) =>
-            s.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            s.registration_number.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredStudents = students.filter((s) => {
+        const matchesQuery =
+            !searchQuery.trim() ||
+            s.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            s.registration_number?.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesGender =
+            selectedGender === 'all' ||
+            (s.gender && s.gender.toLowerCase() === selectedGender.toLowerCase());
+        return matchesQuery && matchesGender;
+    });
 
     if (selectedClass) {
         return renderSpreadsheetWorkspace();
@@ -1331,17 +1345,62 @@ export function MarksPage() {
                     marginBottom: '24px',
                 }}
             >
-                <h3 style={{ fontSize: '17px', fontWeight: '600', marginBottom: '16px' }}>
-                    Filter Marks
-                </h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ fontSize: '17px', fontWeight: '600', margin: 0 }}>
+                        Filter Marks & Students
+                    </h3>
+                    {(searchQuery || selectedFilterClass || selectedExam || selectedGender !== 'all') && (
+                        <button
+                            onClick={() => {
+                                setSearchQuery('');
+                                setSelectedFilterClass('');
+                                setSelectedExam('');
+                                setSelectedGender('all');
+                                fetchAllStudents();
+                            }}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#0071E3',
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                cursor: 'pointer',
+                                padding: 0
+                            }}
+                        >
+                            Reset Filters
+                        </button>
+                    )}
+                </div>
                 <div
                     style={{
                         display: 'grid',
-                        gridTemplateColumns: '1fr 1fr 1fr auto',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr)) auto',
                         gap: '16px',
                         alignItems: 'end',
                     }}
                 >
+                    <div>
+                        <label style={{ display: 'block', fontSize: '13px', color: '#86868B', marginBottom: '8px' }}>
+                            Search Student / Reg ID
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="Name or Reg Number..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{
+                                width: '100%',
+                                height: '44px',
+                                padding: '0 16px',
+                                borderRadius: '10px',
+                                border: '1px solid rgba(0,0,0,0.1)',
+                                fontSize: '14px',
+                                boxSizing: 'border-box'
+                            }}
+                        />
+                    </div>
+
                     <div>
                         <label style={{ display: 'block', fontSize: '13px', color: '#86868B', marginBottom: '8px' }}>
                             Academic Year
@@ -1355,6 +1414,7 @@ export function MarksPage() {
                                 padding: '0 16px',
                                 borderRadius: '10px',
                                 border: '1px solid rgba(0,0,0,0.1)',
+                                boxSizing: 'border-box'
                             }}
                         >
                             <option value="">Select Year</option>
@@ -1363,37 +1423,6 @@ export function MarksPage() {
                                     {year.year_name}
                                 </option>
                             ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label style={{ display: 'block', fontSize: '13px', color: '#86868B', marginBottom: '8px' }}>
-                            Exam Type
-                        </label>
-                        <select
-                            value={selectedExam}
-                            onChange={(e) => setSelectedExam(e.target.value)}
-                            style={{
-                                width: '100%',
-                                height: '44px',
-                                padding: '0 16px',
-                                borderRadius: '10px',
-                                border: '1px solid rgba(0,0,0,0.1)',
-                            }}
-                        >
-                            <option value="">Select Exam</option>
-                            <option value="F1">F1</option>
-                            <option value="F2">F2</option>
-                            <option value="F3">F3</option>
-                            <option value="F4">F4</option>
-                            <option value="S1">S1</option>
-                            <option value="S2">S2</option>
-                            <option value="FA1">FA1</option>
-                            <option value="FA2">FA2</option>
-                            <option value="FA3">FA3</option>
-                            <option value="FA4">FA4</option>
-                            <option value="SA1">SA1</option>
-                            <option value="SA2">SA2</option>
                         </select>
                     </div>
 
@@ -1410,6 +1439,7 @@ export function MarksPage() {
                                 padding: '0 16px',
                                 borderRadius: '10px',
                                 border: '1px solid rgba(0,0,0,0.1)',
+                                boxSizing: 'border-box'
                             }}
                         >
                             <option value="">All Classes</option>
@@ -1418,6 +1448,61 @@ export function MarksPage() {
                                     {cls.class_name}
                                 </option>
                             ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style={{ display: 'block', fontSize: '13px', color: '#86868B', marginBottom: '8px' }}>
+                            Gender
+                        </label>
+                        <select
+                            value={selectedGender}
+                            onChange={(e) => setSelectedGender(e.target.value)}
+                            style={{
+                                width: '100%',
+                                height: '44px',
+                                padding: '0 16px',
+                                borderRadius: '10px',
+                                border: '1px solid rgba(0,0,0,0.1)',
+                                boxSizing: 'border-box'
+                            }}
+                        >
+                            <option value="all">All Genders</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style={{ display: 'block', fontSize: '13px', color: '#86868B', marginBottom: '8px' }}>
+                            Exam Name / Type
+                        </label>
+                        <select
+                            value={selectedExam}
+                            onChange={(e) => setSelectedExam(e.target.value)}
+                            style={{
+                                width: '100%',
+                                height: '44px',
+                                padding: '0 16px',
+                                borderRadius: '10px',
+                                border: '1px solid rgba(0,0,0,0.1)',
+                                boxSizing: 'border-box'
+                            }}
+                        >
+                            <option value="">All Exams (Year Average)</option>
+                            <option value="F1">F1</option>
+                            <option value="F2">F2</option>
+                            <option value="F3">F3</option>
+                            <option value="F4">F4</option>
+                            <option value="S1">S1</option>
+                            <option value="S2">S2</option>
+                            <option value="FA1">FA1</option>
+                            <option value="FA2">FA2</option>
+                            <option value="FA3">FA3</option>
+                            <option value="FA4">FA4</option>
+                            <option value="SA1">SA1</option>
+                            <option value="SA2">SA2</option>
                         </select>
                     </div>
 
@@ -1433,9 +1518,10 @@ export function MarksPage() {
                             fontSize: '15px',
                             fontWeight: '500',
                             cursor: 'pointer',
+                            whiteSpace: 'nowrap'
                         }}
                     >
-                        Apply
+                        Apply Filter
                     </button>
                 </div>
             </div>
@@ -1465,6 +1551,15 @@ export function MarksPage() {
                             onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
                         >
                             <div
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    openPhoto({
+                                        photoUrl: student.photo_url,
+                                        title: student.full_name,
+                                        subtitle: `${student.registration_number} • ${student.classes?.class_name || 'Class N/A'}`,
+                                        badge: student.gender || undefined
+                                    });
+                                }}
                                 style={{
                                     width: '48px',
                                     height: '48px',
@@ -1478,20 +1573,31 @@ export function MarksPage() {
                                     color: '#fff',
                                     fontSize: '20px',
                                     fontWeight: '700',
+                                    cursor: 'pointer',
+                                    transition: 'transform 0.15s',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                                 }}
+                                title="Click to view full photo (WhatsApp style)"
+                                onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
+                                onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                             >
                                 {!student.photo_url && student.full_name.charAt(0).toUpperCase()}
                             </div>
                             <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: '15px', fontWeight: '600', color: '#1D1D1F' }}>
-                                    {student.full_name}
+                                <div style={{ fontSize: '15px', fontWeight: '600', color: '#1D1D1F', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span>{student.full_name}</span>
+                                    {student.gender && (
+                                        <span style={{ fontSize: '11px', textTransform: 'capitalize', background: '#F5F5F7', padding: '2px 8px', borderRadius: '12px', color: '#6B7280', fontWeight: '500' }}>
+                                            {student.gender}
+                                        </span>
+                                    )}
                                 </div>
-                                <div style={{ fontSize: '13px', color: '#86868B' }}>
-                                    {student.registration_number} • {student.classes?.class_name}
+                                <div style={{ fontSize: '13px', color: '#86868B', marginTop: '4px' }}>
+                                    {student.registration_number} • {student.classes?.class_name || 'Class N/A'}
                                 </div>
                             </div>
                             <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontSize: '24px', fontWeight: '700', color: '#0071E3' }}>
+                                <div style={{ fontSize: '24px', fontWeight: '700', color: student.avgMarks >= 75 ? '#2E7D32' : student.avgMarks >= 50 ? '#0071E3' : '#FF9500' }}>
                                     {student.avgMarks}%
                                 </div>
                                 <div style={{ fontSize: '13px', color: '#86868B' }}>Avg Marks</div>
@@ -1518,6 +1624,10 @@ export function MarksPage() {
                     studentId={selectedStudentForCard}
                     examId={resolvedExamId || selectedExam || ''}
                     onClose={() => setSelectedStudentForCard(null)}
+                    onUpdate={() => {
+                        fetchAllStudents();
+                        handleApplyFilter();
+                    }}
                 />
             )}
         </div>

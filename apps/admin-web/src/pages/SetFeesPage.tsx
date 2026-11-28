@@ -5,8 +5,8 @@ import {
     ChevronLeft,
     Save,
     RotateCcw,
-    Edit2,
-    Trash2
+    Layers,
+    Package
 } from 'lucide-react';
 import './SetFeesPage.css';
 
@@ -54,16 +54,43 @@ const initialFeeState: FeeBreakdown = {
     others: 0
 };
 
+export interface ItemFeeBreakdown {
+    uniform: number;
+    books: number;
+    van: number;
+    tie_belt: number;
+    shoes: number;
+}
+
+const initialItemFeeState: ItemFeeBreakdown = {
+    uniform: 0,
+    books: 0,
+    van: 0,
+    tie_belt: 0,
+    shoes: 0
+};
+
+export const ANCILLARY_ITEMS = [
+    { key: 'uniform', label_en: 'School Dress / Uniform', label_kn: 'ಶಾಲಾ ಸಮವಸ್ತ್ರ ಶುಲ್ಕ', icon: '👔' },
+    { key: 'books', label_en: 'Books Fee', label_kn: 'ಪುಸ್ತಕಗಳ ಶುಲ್ಕ', icon: '📚' },
+    { key: 'van', label_en: 'Van / Transport Fee', label_kn: 'ವಾಹನ / ಸಾರಿಗೆ ಶುಲ್ಕ', icon: '🚌' },
+    { key: 'tie_belt', label_en: 'Tie & Belt Fee', label_kn: 'ಟೈ ಮತ್ತು ಬೆಲ್ಟ್ ಶುಲ್ಕ', icon: '🎗️' },
+    { key: 'shoes', label_en: 'Shoes Fee', label_kn: 'ಶೂಸ್ / ಪಾದರಕ್ಷೆ ಶುಲ್ಕ', icon: '👟' },
+] as const;
+
 export function SetFeesPage() {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [classes, setClasses] = useState<Class[]>([]);
     const [currentYear, setCurrentYear] = useState<AcademicYear | null>(null);
-    const [publishedFees, setPublishedFees] = useState<any[]>([]);
+
+    // Category: Academic Year Fee vs 5 Ancillary Items Fee
+    const [feeCategory, setFeeCategory] = useState<'academic' | 'items'>('academic');
 
     const [selectedClassId, setSelectedClassId] = useState<string>('');
     const [fees, setFees] = useState<FeeBreakdown>(initialFeeState);
+    const [itemFees, setItemFees] = useState<ItemFeeBreakdown>(initialItemFeeState);
 
     // Whole Class vs Individual Students
     const [applyTo, setApplyTo] = useState<'class' | 'students'>('class');
@@ -74,8 +101,7 @@ export function SetFeesPage() {
 
     // Accordion / Overview states
     const [publishedOverview, setPublishedOverview] = useState<any[]>([]);
-    const [expandedClassIds, setExpandedClassIds] = useState<string[]>([]);
-    const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
+    const [itemPublishedOverview, setItemPublishedOverview] = useState<any[]>([]);
 
     useEffect(() => {
         fetchInitialData();
@@ -83,26 +109,38 @@ export function SetFeesPage() {
 
     useEffect(() => {
         if (selectedClassId && currentYear) {
-            fetchExistingFees();
+            if (feeCategory === 'academic') {
+                fetchExistingFees();
+            } else {
+                fetchExistingItemFees();
+            }
             fetchStudents(selectedClassId);
         }
-    }, [selectedClassId, currentYear]);
+    }, [selectedClassId, currentYear, feeCategory]);
 
     useEffect(() => {
         if (currentYear) {
-            fetchPublishedFees();
             fetchPublishedOverview();
+            fetchItemOverview();
         }
     }, [currentYear]);
 
-    // Hook: when exactly one student is selected in individual mode, load their custom structure
+    // When exactly one student is selected in individual mode, load custom structure
     useEffect(() => {
         if (applyTo === 'students' && selectedStudentIds.length === 1) {
-            fetchStudentCustomFees(selectedStudentIds[0]);
+            if (feeCategory === 'academic') {
+                fetchStudentCustomFees(selectedStudentIds[0]);
+            } else {
+                fetchStudentCustomItemFees(selectedStudentIds[0]);
+            }
         } else {
-            fetchExistingFees();
+            if (feeCategory === 'academic') {
+                fetchExistingFees();
+            } else {
+                fetchExistingItemFees();
+            }
         }
-    }, [selectedStudentIds, applyTo]);
+    }, [selectedStudentIds, applyTo, feeCategory]);
 
     const fetchInitialData = async () => {
         try {
@@ -117,10 +155,9 @@ export function SetFeesPage() {
             }
 
             if (classesRes.data?.length) setSelectedClassId(classesRes.data[0].id);
-
-            setLoading(false);
         } catch (error) {
-            console.error('Error fetching data:', error);
+            console.error('Error fetching initial data:', error);
+        } finally {
             setLoading(false);
         }
     };
@@ -139,13 +176,7 @@ export function SetFeesPage() {
 
             if (error) throw error;
             setStudents(data || []);
-            
-            if (editingStudentId) {
-                setSelectedStudentIds([editingStudentId]);
-                setEditingStudentId(null);
-            } else {
-                setSelectedStudentIds((data || []).map(s => s.id)); // Default to all selected
-            }
+            setSelectedStudentIds([]);
         } catch (error) {
             console.error('Error fetching students:', error);
         } finally {
@@ -153,193 +184,15 @@ export function SetFeesPage() {
         }
     };
 
-    const fetchPublishedFees = async () => {
-        if (!currentYear) return;
-        try {
-            const { data } = await supabase
-                .from('class_fees')
-                .select(`
-                    id,
-                    class_id,
-                    total_fee,
-                    classes (
-                        class_name,
-                        section,
-                        numeric_value
-                    )
-                `)
-                .eq('academic_year_id', currentYear.id);
-
-            if (data) {
-                // Sort by numeric_value of class
-                data.sort((a: any, b: any) => {
-                    const valA = a.classes?.numeric_value || 0;
-                    const valB = b.classes?.numeric_value || 0;
-                    return valA - valB;
-                });
-                setPublishedFees(data);
-            }
-        } catch (error) {
-            console.error('Error fetching published fees:', error);
-        }
-    };
-
-    const fetchPublishedOverview = async () => {
-        if (!currentYear) return;
-        try {
-            const [classesRes, classFeesRes, studentFeesRes, studentsRes] = await Promise.all([
-                supabase.from('classes').select('*').order('numeric_value', { ascending: true }),
-                supabase.from('class_fees').select('*').eq('academic_year_id', currentYear.id),
-                supabase.from('student_fees').select('*').eq('academic_year_id', currentYear.id),
-                supabase.from('students').select('id, full_name, roll_number, class_id').eq('academic_year_id', currentYear.id).eq('is_active', true)
-            ]);
-
-            if (classesRes.error) throw classesRes.error;
-            if (classFeesRes.error) throw classFeesRes.error;
-            if (studentFeesRes.error) throw studentFeesRes.error;
-            if (studentsRes.error) throw studentsRes.error;
-
-            const classesData = classesRes.data || [];
-            const classFeesData = classFeesRes.data || [];
-            const studentFeesData = studentFeesRes.data || [];
-            const studentsData = studentsRes.data || [];
-
-            const studentMap = new Map(studentsData.map((s: any) => [s.id, s]));
-
-            const overviewList = classesData.map((cls: any) => {
-                const classFee = classFeesData.find((cf: any) => cf.class_id === cls.id) || null;
-                
-                // Find student fees for students in this class
-                const classStudentFees = studentFeesData.filter((sf: any) => {
-                    const student = studentMap.get(sf.student_id);
-                    if (!student) return false;
-                    const studentClassId = student.class_id || sf.class_id;
-                    return studentClassId === cls.id;
-                });
-
-                const customStudents: any[] = [];
-                for (const sf of classStudentFees) {
-                    const student = studentMap.get(sf.student_id);
-                    if (!student) continue;
-
-                    let isCustom = false;
-                    if (!classFee) {
-                        isCustom = Number(sf.total_amount) > 0;
-                    } else {
-                        isCustom = 
-                            Number(sf.total_amount) !== Number(classFee.total_fee) ||
-                            Number(sf.admission_fee) !== Number(classFee.admission_fee) ||
-                            Number(sf.tuition_fee) !== Number(classFee.tuition_fee) ||
-                            Number(sf.betterment_fee) !== Number(classFee.betterment_fee) ||
-                            Number(sf.sports_fee) !== Number(classFee.sports_fee) ||
-                            Number(sf.reading_room_fee) !== Number(classFee.reading_room_fee) ||
-                            Number(sf.medical_fee) !== Number(classFee.medical_fee) ||
-                            Number(sf.laboratory_fee) !== Number(classFee.laboratory_fee) ||
-                            Number(sf.ave_fee) !== Number(classFee.ave_fee) ||
-                            Number(sf.swf) !== Number(classFee.swf) ||
-                            Number(sf.tbf) !== Number(classFee.tbf) ||
-                            Number(sf.examination_fee) !== Number(classFee.examination_fee) ||
-                            Number(sf.fines) !== Number(classFee.fines) ||
-                            Number(sf.others) !== Number(classFee.others);
-                    }
-
-                    if (isCustom) {
-                        customStudents.push({
-                            studentId: student.id,
-                            studentFeeId: sf.id,
-                            fullName: student.full_name,
-                            rollNumber: student.roll_number,
-                            totalAmount: sf.total_amount,
-                            fees: {
-                                admission_fee: Number(sf.admission_fee) || 0,
-                                tuition_fee: Number(sf.tuition_fee) || 0,
-                                betterment_fee: Number(sf.betterment_fee) || 0,
-                                sports_fee: Number(sf.sports_fee) || 0,
-                                reading_room_fee: Number(sf.reading_room_fee) || 0,
-                                medical_fee: Number(sf.medical_fee) || 0,
-                                laboratory_fee: Number(sf.laboratory_fee) || 0,
-                                ave_fee: Number(sf.ave_fee) || 0,
-                                swf: Number(sf.swf) || 0,
-                                tbf: Number(sf.tbf) || 0,
-                                examination_fee: Number(sf.examination_fee) || 0,
-                                fines: Number(sf.fines) || 0,
-                                others: Number(sf.others) || 0
-                            }
-                        });
-                    }
-                }
-
-                // Sort custom students by roll number or name
-                customStudents.sort((a, b) => {
-                    if (a.rollNumber && b.rollNumber) return a.rollNumber - b.rollNumber;
-                    return a.fullName.localeCompare(b.fullName);
-                });
-
-                return {
-                    classId: cls.id,
-                    className: cls.class_name,
-                    section: cls.section,
-                    classFee,
-                    customStudents
-                };
-            });
-
-            setPublishedOverview(overviewList);
-        } catch (error) {
-            console.error('Error fetching published overview:', error);
-        }
-    };
-
-    const fetchStudentCustomFees = async (studentId: string) => {
-        if (!currentYear) return;
-        try {
-            const { data, error } = await supabase
-                .from('student_fees')
-                .select('*')
-                .eq('student_id', studentId)
-                .eq('academic_year_id', currentYear.id)
-                .maybeSingle();
-
-            if (error) throw error;
-
-            if (data && data.total_amount > 0) {
-                setFees({
-                    admission_fee: Number(data.admission_fee) || 0,
-                    tuition_fee: Number(data.tuition_fee) || 0,
-                    betterment_fee: Number(data.betterment_fee) || 0,
-                    sports_fee: Number(data.sports_fee) || 0,
-                    reading_room_fee: Number(data.reading_room_fee) || 0,
-                    medical_fee: Number(data.medical_fee) || 0,
-                    laboratory_fee: Number(data.laboratory_fee) || 0,
-                    ave_fee: Number(data.ave_fee) || 0,
-                    swf: Number(data.swf) || 0,
-                    tbf: Number(data.tbf) || 0,
-                    examination_fee: Number(data.examination_fee) || 0,
-                    fines: Number(data.fines) || 0,
-                    others: Number(data.others) || 0
-                });
-            } else {
-                fetchExistingFees();
-            }
-        } catch (error) {
-            console.error('Error fetching student custom fees:', error);
-            fetchExistingFees();
-        }
-    };
-
     const fetchExistingFees = async () => {
-        if (!currentYear) return;
-        if (editingStudentId) return;
+        if (!selectedClassId || !currentYear) return;
         try {
             const { data } = await supabase
                 .from('class_fees')
                 .select('*')
                 .eq('class_id', selectedClassId)
                 .eq('academic_year_id', currentYear.id)
-                .maybeSingle();
-
-            if (editingStudentId) return;
-            if (applyTo === 'students' && selectedStudentIds.length === 1) return;
+                .single();
 
             if (data) {
                 setFees({
@@ -365,18 +218,225 @@ export function SetFeesPage() {
         }
     };
 
-    const handleFeeChange = (key: keyof FeeBreakdown, value: string) => {
+    const fetchExistingItemFees = async () => {
+        if (!selectedClassId || !currentYear) return;
+        try {
+            const { data } = await supabase
+                .from('class_item_fees')
+                .select('*')
+                .eq('class_id', selectedClassId)
+                .eq('academic_year_id', currentYear.id);
+
+            const nextItems: ItemFeeBreakdown = { ...initialItemFeeState };
+            if (data && data.length > 0) {
+                data.forEach((row: any) => {
+                    if (row.item_type in nextItems) {
+                        (nextItems as any)[row.item_type] = Number(row.amount) || 0;
+                    }
+                });
+            }
+            setItemFees(nextItems);
+        } catch (error) {
+            setItemFees(initialItemFeeState);
+        }
+    };
+
+    const fetchStudentCustomFees = async (studentId: string) => {
+        if (!currentYear) return;
+        try {
+            const { data } = await supabase
+                .from('student_fees')
+                .select('*')
+                .eq('student_id', studentId)
+                .eq('academic_year_id', currentYear.id)
+                .single();
+
+            if (data) {
+                setFees({
+                    admission_fee: Number(data.admission_fee) || 0,
+                    tuition_fee: Number(data.tuition_fee) || 0,
+                    betterment_fee: Number(data.betterment_fee) || 0,
+                    sports_fee: Number(data.sports_fee) || 0,
+                    reading_room_fee: Number(data.reading_room_fee) || 0,
+                    medical_fee: Number(data.medical_fee) || 0,
+                    laboratory_fee: Number(data.laboratory_fee) || 0,
+                    ave_fee: Number(data.ave_fee) || 0,
+                    swf: Number(data.swf) || 0,
+                    tbf: Number(data.tbf) || 0,
+                    examination_fee: Number(data.examination_fee) || 0,
+                    fines: Number(data.fines) || 0,
+                    others: Number(data.others) || 0
+                });
+            }
+        } catch (error) {
+            fetchExistingFees();
+        }
+    };
+
+    const fetchStudentCustomItemFees = async (studentId: string) => {
+        if (!currentYear) return;
+        try {
+            const { data } = await supabase
+                .from('student_item_fees')
+                .select('*')
+                .eq('student_id', studentId)
+                .eq('academic_year_id', currentYear.id);
+
+            if (data && data.length > 0) {
+                const nextItems: ItemFeeBreakdown = { ...initialItemFeeState };
+                data.forEach((row: any) => {
+                    if (row.item_type in nextItems) {
+                        (nextItems as any)[row.item_type] = Number(row.amount_total) || 0;
+                    }
+                });
+                setItemFees(nextItems);
+            } else {
+                fetchExistingItemFees();
+            }
+        } catch (error) {
+            fetchExistingItemFees();
+        }
+    };
+
+
+
+    const fetchPublishedOverview = async () => {
+        if (!currentYear) return;
+        try {
+            const [classesRes, classFeesRes, studentFeesRes, studentsRes] = await Promise.all([
+                supabase.from('classes').select('*').order('numeric_value', { ascending: true }),
+                supabase.from('class_fees').select('*').eq('academic_year_id', currentYear.id),
+                supabase.from('student_fees').select('*').eq('academic_year_id', currentYear.id),
+                supabase.from('students').select('id, full_name, roll_number, class_id').eq('academic_year_id', currentYear.id).eq('is_active', true)
+            ]);
+
+            const classesData = classesRes.data || [];
+            const classFeesData = classFeesRes.data || [];
+            const studentFeesData = studentFeesRes.data || [];
+            const studentsData = studentsRes.data || [];
+            const studentMap = new Map(studentsData.map((s: any) => [s.id, s]));
+
+            const overviewList = classesData.map((cls: any) => {
+                const classFee = classFeesData.find((cf: any) => cf.class_id === cls.id) || null;
+                const classStudentFees = studentFeesData.filter((sf: any) => {
+                    const student = studentMap.get(sf.student_id);
+                    if (!student) return false;
+                    const studentClassId = student.class_id || sf.class_id;
+                    return studentClassId === cls.id;
+                });
+
+                const customStudents: any[] = [];
+                for (const sf of classStudentFees) {
+                    const student = studentMap.get(sf.student_id);
+                    if (!student) continue;
+
+                    let isCustom = false;
+                    if (!classFee) {
+                        isCustom = Number(sf.total_amount) > 0;
+                    } else {
+                        isCustom = Number(sf.total_amount) !== Number(classFee.total_fee);
+                    }
+
+                    if (isCustom) {
+                        customStudents.push({
+                            studentId: student.id,
+                            studentFeeId: sf.id,
+                            fullName: student.full_name,
+                            rollNumber: student.roll_number,
+                            totalAmount: Number(sf.total_amount) || 0
+                        });
+                    }
+                }
+
+                return {
+                    classId: cls.id,
+                    className: `${cls.class_name}${cls.section ? ' - ' + cls.section : ''}`,
+                    classFee,
+                    customStudents
+                };
+            });
+
+            setPublishedOverview(overviewList);
+        } catch (error) {
+            console.error('Error fetching overview:', error);
+        }
+    };
+
+    const fetchItemOverview = async () => {
+        if (!currentYear) return;
+        try {
+            const [classesRes, classItemRes, studentItemRes, studentsRes] = await Promise.all([
+                supabase.from('classes').select('*').order('numeric_value', { ascending: true }),
+                supabase.from('class_item_fees').select('*').eq('academic_year_id', currentYear.id),
+                supabase.from('student_item_fees').select('*').eq('academic_year_id', currentYear.id),
+                supabase.from('students').select('id, full_name, roll_number, class_id').eq('academic_year_id', currentYear.id).eq('is_active', true)
+            ]);
+
+            const classesData = classesRes.data || [];
+            const classItemData = classItemRes.data || [];
+            const studentItemData = studentItemRes.data || [];
+            const studentsData = studentsRes.data || [];
+            const studentMap = new Map(studentsData.map((s: any) => [s.id, s]));
+
+            const overviewList = classesData.map((cls: any) => {
+                const classItems = classItemData.filter((ci: any) => ci.class_id === cls.id);
+                const classStudentItems = studentItemData.filter((si: any) => {
+                    const student = studentMap.get(si.student_id);
+                    if (!student) return false;
+                    return (student.class_id || si.class_id) === cls.id;
+                });
+
+                return {
+                    classId: cls.id,
+                    className: `${cls.class_name}${cls.section ? ' - ' + cls.section : ''}`,
+                    classItems,
+                    studentItemsCount: classStudentItems.length
+                };
+            });
+
+            setItemPublishedOverview(overviewList);
+        } catch (error) {
+            console.error('Error fetching item overview:', error);
+        }
+    };
+
+    const handleInputChange = (field: keyof FeeBreakdown, value: string) => {
         const numValue = value === '' ? 0 : parseFloat(value);
-        setFees(prev => ({ ...prev, [key]: numValue }));
+        setFees(prev => ({
+            ...prev,
+            [field]: isNaN(numValue) ? 0 : numValue
+        }));
+    };
+
+    const handleItemInputChange = (itemKey: keyof ItemFeeBreakdown, value: string) => {
+        const numValue = value === '' ? 0 : parseFloat(value);
+        setItemFees(prev => ({
+            ...prev,
+            [itemKey]: isNaN(numValue) ? 0 : numValue
+        }));
     };
 
     const calculateTotal = () => {
         return Object.values(fees).reduce((sum, val) => sum + val, 0);
     };
 
-    const handleSave = async () => {
-        if (!selectedClassId || !currentYear) return;
+    const calculateItemTotal = () => {
+        return Object.values(itemFees).reduce((sum, val) => sum + val, 0);
+    };
 
+    const handleReset = () => {
+        if (window.confirm('Are you sure you want to reset all fee fields to 0?')) {
+            if (feeCategory === 'academic') {
+                setFees(initialFeeState);
+            } else {
+                setItemFees(initialItemFeeState);
+            }
+        }
+    };
+
+    // Save Academic Year Fees
+    const handleSaveAcademicFees = async () => {
+        if (!selectedClassId || !currentYear) return;
         const totalAmount = calculateTotal();
         if (totalAmount === 0) {
             alert('Please enter at least one fee amount');
@@ -386,7 +446,6 @@ export function SetFeesPage() {
         setSaving(true);
         try {
             if (applyTo === 'class') {
-                // Save class fees default structure
                 const { error: classFeeErr } = await supabase
                     .from('class_fees')
                     .upsert({
@@ -398,10 +457,8 @@ export function SetFeesPage() {
 
                 if (classFeeErr) throw classFeeErr;
 
-                // Update student_fees for all students in class
                 if (students.length > 0) {
                     const studentIds = students.map(s => s.id);
-                    
                     const { data: existingStudentFees } = await supabase
                         .from('student_fees')
                         .select('student_id, amount_paid')
@@ -412,7 +469,7 @@ export function SetFeesPage() {
 
                     const studentFeesToUpsert = studentIds.map(studentId => {
                         const paidAmount = existingFeeMap.get(studentId) || 0;
-                        const pendingAmount = totalAmount - paidAmount;
+                        const pendingAmount = Math.max(0, totalAmount - paidAmount);
                         return {
                             student_id: studentId,
                             class_id: selectedClassId,
@@ -431,10 +488,8 @@ export function SetFeesPage() {
 
                     if (studentFeeErr) throw studentFeeErr;
                 }
-
-                alert('Class fees saved and applied to all class students successfully!');
+                alert('Academic fees saved and applied to all class students successfully!');
             } else {
-                // Apply to selected individual students only
                 if (selectedStudentIds.length === 0) {
                     alert('Please select at least one student.');
                     setSaving(false);
@@ -451,7 +506,7 @@ export function SetFeesPage() {
 
                 const studentFeesToUpsert = selectedStudentIds.map(studentId => {
                     const paidAmount = existingFeeMap.get(studentId) || 0;
-                    const pendingAmount = totalAmount - paidAmount;
+                    const pendingAmount = Math.max(0, totalAmount - paidAmount);
                     return {
                         student_id: studentId,
                         class_id: selectedClassId,
@@ -470,10 +525,9 @@ export function SetFeesPage() {
 
                 if (studentFeeErr) throw studentFeeErr;
 
-                alert(`Fees successfully configured and published for ${selectedStudentIds.length} student(s)!`);
+                alert(`Academic fees published for ${selectedStudentIds.length} student(s)!`);
             }
-            fetchPublishedFees(); // Refresh table
-            fetchPublishedOverview(); // Refresh overview
+            fetchPublishedOverview();
         } catch (error: any) {
             console.error('Error saving fees:', error);
             alert('Error saving fees: ' + error.message);
@@ -482,194 +536,212 @@ export function SetFeesPage() {
         }
     };
 
-    const handleDelete = async (feeId: string, className: string) => {
-        if (!confirm(`Are you sure you want to delete the published fees for ${className}?`)) return;
+    // Save 5 Ancillary Items Fees
+    const handleSaveItemFees = async () => {
+        if (!selectedClassId || !currentYear) return;
+        const totalItemsAmount = calculateItemTotal();
+        if (totalItemsAmount === 0) {
+            alert('Please enter at least one item fee amount');
+            return;
+        }
 
+        setSaving(true);
         try {
-            const feeToDelete = publishedFees.find(f => f.id === feeId);
-            if (!feeToDelete) throw new Error('Fee record not found locally');
+            if (applyTo === 'class') {
+                // Upsert into class_item_fees for each non-zero item
+                for (const item of ANCILLARY_ITEMS) {
+                    const amount = itemFees[item.key as keyof ItemFeeBreakdown];
+                    const { error } = await supabase
+                        .from('class_item_fees')
+                        .upsert({
+                            class_id: selectedClassId,
+                            academic_year_id: currentYear.id,
+                            item_type: item.key,
+                            amount: amount,
+                            updated_at: new Date().toISOString()
+                        }, { onConflict: 'class_id,academic_year_id,item_type' });
 
-            const { class_id } = feeToDelete;
-
-            // Delete from class_fees
-            const { error: deleteClassFeeErr } = await supabase
-                .from('class_fees')
-                .delete()
-                .eq('id', feeId);
-            if (deleteClassFeeErr) throw deleteClassFeeErr;
-
-            // Delete corresponding student_fees records for students of this class in the current academic year
-            if (currentYear) {
-                const { data: classStudents } = await supabase
-                    .from('students')
-                    .select('id')
-                    .eq('class_id', class_id);
-
-                if (classStudents && classStudents.length > 0) {
-                    const studentIds = classStudents.map(s => s.id);
-                    const { error: deleteStudentFeesErr } = await supabase
-                        .from('student_fees')
-                        .delete()
-                        .in('student_id', studentIds)
-                        .eq('academic_year_id', currentYear.id);
-
-                    if (deleteStudentFeesErr) throw deleteStudentFeesErr;
+                    if (error) throw error;
                 }
-            }
 
-            // Refresh logic
-            fetchPublishedFees();
-            fetchPublishedOverview();
-            if (class_id === selectedClassId) {
-                setFees(initialFeeState); // Reset form if we deleted the currently selected class
-            }
-            alert('Fee deleted successfully!');
-        } catch (error: any) {
-            console.error('Error deleting fee:', error);
-            alert('Error deleting fee: ' + error.message);
-        }
-    };
+                // Apply to students in class
+                if (students.length > 0) {
+                    const studentIds = students.map(s => s.id);
+                    for (const item of ANCILLARY_ITEMS) {
+                        const amount = itemFees[item.key as keyof ItemFeeBreakdown];
+                        // Fetch existing paid amounts
+                        const { data: existingRows } = await supabase
+                            .from('student_item_fees')
+                            .select('student_id, amount_paid')
+                            .in('student_id', studentIds)
+                            .eq('academic_year_id', currentYear.id)
+                            .eq('item_type', item.key);
 
-    const handleReset = () => {
-        if (applyTo === 'students' && selectedStudentIds.length === 1) {
-            fetchStudentCustomFees(selectedStudentIds[0]);
-        } else {
-            fetchExistingFees();
-        }
-    };
+                        const existingPaidMap = new Map(existingRows?.map(r => [r.student_id, r.amount_paid || 0]) || []);
 
-    const handleEditStudentFee = (classId: string, studentId: string) => {
-        setApplyTo('students');
-        if (selectedClassId === classId) {
-            setSelectedStudentIds([studentId]);
-        } else {
-            setEditingStudentId(studentId);
-            setSelectedClassId(classId);
-        }
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
+                        const rowsToUpsert = studentIds.map(studentId => {
+                            const paid = existingPaidMap.get(studentId) || 0;
+                            return {
+                                student_id: studentId,
+                                class_id: selectedClassId,
+                                academic_year_id: currentYear.id,
+                                item_type: item.key,
+                                amount_total: amount,
+                                amount_paid: paid,
+                                amount_pending: Math.max(0, amount - paid),
+                                updated_at: new Date().toISOString()
+                            };
+                        });
 
-    const handleDeleteStudentFee = async (
-        studentFeeId: string,
-        studentId: string,
-        classId: string,
-        studentName: string,
-        classFee: any
-    ) => {
-        if (!confirm(`Are you sure you want to revert/delete the custom fee for ${studentName}?`)) return;
+                        const { error: upsertErr } = await supabase
+                            .from('student_item_fees')
+                            .upsert(rowsToUpsert, { onConflict: 'student_id,academic_year_id,item_type' });
 
-        try {
-            if (classFee) {
-                // Fetch current paid amount
-                const { data: sfRow } = await supabase
-                    .from('student_fees')
-                    .select('amount_paid')
-                    .eq('id', studentFeeId)
-                    .single();
-
-                const paidAmount = sfRow?.amount_paid || 0;
-                const totalAmount = classFee.total_fee;
-                const pendingAmount = totalAmount - paidAmount;
-
-                // Revert to class default structure
-                const { error } = await supabase
-                    .from('student_fees')
-                    .upsert({
-                        id: studentFeeId,
-                        student_id: studentId,
-                        class_id: classId,
-                        academic_year_id: currentYear?.id,
-                        total_amount: totalAmount,
-                        amount_paid: paidAmount,
-                        amount_pending: pendingAmount,
-                        admission_fee: classFee.admission_fee,
-                        tuition_fee: classFee.tuition_fee,
-                        betterment_fee: classFee.betterment_fee,
-                        sports_fee: classFee.sports_fee,
-                        reading_room_fee: classFee.reading_room_fee,
-                        medical_fee: classFee.medical_fee,
-                        laboratory_fee: classFee.laboratory_fee,
-                        ave_fee: classFee.ave_fee,
-                        swf: classFee.swf,
-                        tbf: classFee.tbf,
-                        examination_fee: classFee.examination_fee,
-                        fines: classFee.fines,
-                        others: classFee.others,
-                        updated_at: new Date().toISOString()
-                    }, { onConflict: 'student_id,academic_year_id' });
-
-                if (error) throw error;
-                alert(`Reverted ${studentName}'s fee structure to class default successfully.`);
+                        if (upsertErr) throw upsertErr;
+                    }
+                }
+                alert('Ancillary item fees saved for whole class successfully!');
             } else {
-                // No class fee exists, delete custom fee row completely
-                const { error } = await supabase
-                    .from('student_fees')
-                    .delete()
-                    .eq('id', studentFeeId);
+                if (selectedStudentIds.length === 0) {
+                    alert('Please select at least one student.');
+                    setSaving(false);
+                    return;
+                }
 
-                if (error) throw error;
-                alert(`Deleted custom fee structure for ${studentName}.`);
-            }
+                for (const item of ANCILLARY_ITEMS) {
+                    const amount = itemFees[item.key as keyof ItemFeeBreakdown];
+                    const { data: existingRows } = await supabase
+                        .from('student_item_fees')
+                        .select('student_id, amount_paid')
+                        .in('student_id', selectedStudentIds)
+                        .eq('academic_year_id', currentYear.id)
+                        .eq('item_type', item.key);
 
-            // Refresh UI
-            fetchPublishedOverview();
-            // Also reset current inputs if it was this student
-            if (applyTo === 'students' && selectedStudentIds.includes(studentId)) {
-                handleReset();
+                    const existingPaidMap = new Map(existingRows?.map(r => [r.student_id, r.amount_paid || 0]) || []);
+
+                    const rowsToUpsert = selectedStudentIds.map(studentId => {
+                        const paid = existingPaidMap.get(studentId) || 0;
+                        return {
+                            student_id: studentId,
+                            class_id: selectedClassId,
+                            academic_year_id: currentYear.id,
+                            item_type: item.key,
+                            amount_total: amount,
+                            amount_paid: paid,
+                            amount_pending: Math.max(0, amount - paid),
+                            updated_at: new Date().toISOString()
+                        };
+                    });
+
+                    const { error: upsertErr } = await supabase
+                        .from('student_item_fees')
+                        .upsert(rowsToUpsert, { onConflict: 'student_id,academic_year_id,item_type' });
+
+                    if (upsertErr) throw upsertErr;
+                }
+
+                alert(`Ancillary item fees published for ${selectedStudentIds.length} student(s)!`);
             }
+            fetchItemOverview();
         } catch (error: any) {
-            console.error('Error deleting custom student fee:', error);
-            alert('Error deleting custom student fee: ' + error.message);
+            console.error('Error saving item fees:', error);
+            alert('Error saving item fees: ' + error.message);
+        } finally {
+            setSaving(false);
         }
     };
 
-    const handleEditRow = (classId: string) => {
-        setSelectedClassId(classId);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+    const handleSave = () => {
+        if (feeCategory === 'academic') {
+            handleSaveAcademicFees();
+        } else {
+            handleSaveItemFees();
+        }
     };
-
-    if (loading) return <div className="loading">Loading...</div>;
-
-    const feeItems: { key: keyof FeeBreakdown; label: string }[] = [
-        { key: 'admission_fee', label: 'Admission/Re-Admission Fee' },
-        { key: 'tuition_fee', label: 'Tuition Fee' },
-        { key: 'betterment_fee', label: 'Betterment Fee' },
-        { key: 'sports_fee', label: 'Sports Fee' },
-        { key: 'reading_room_fee', label: 'Reading Room Fee' },
-        { key: 'medical_fee', label: 'Medical Fee' },
-        { key: 'laboratory_fee', label: 'Laboratory Fee' },
-        { key: 'ave_fee', label: 'AVE Fee' },
-        { key: 'swf', label: 'SWF' },
-        { key: 'tbf', label: 'TBF' },
-        { key: 'examination_fee', label: 'Examination Fee' },
-        { key: 'fines', label: 'Fines' },
-        { key: 'others', label: 'Others' }
-    ];
 
     return (
         <div className="set-fees-page">
             <div className="page-header">
                 <button className="back-btn" onClick={() => navigate('/billing')}>
                     <ChevronLeft size={20} />
-                    Back to Billing
+                    <span>Back to Billing</span>
                 </button>
                 <div className="header-titles">
-                    <h1>Set School Fees</h1>
-                    <p>Configure class-wise fee structures for the Current Academic Year</p>
+                    <h1>Fee Structure Management</h1>
+                    <p>Configure Academic Year Fees and 5 Ancillary Item Fees for classes or individual students</p>
                 </div>
+            </div>
+
+            {/* Apple-Style Segmented Category Control */}
+            <div style={{
+                display: 'inline-flex',
+                background: '#F1F5F9',
+                padding: '4px',
+                borderRadius: '12px',
+                marginBottom: '24px',
+                gap: '4px'
+            }}>
+                <button
+                    type="button"
+                    onClick={() => setFeeCategory('academic')}
+                    style={{
+                        padding: '10px 20px',
+                        borderRadius: '9px',
+                        border: 'none',
+                        background: feeCategory === 'academic' ? '#FFFFFF' : 'transparent',
+                        color: feeCategory === 'academic' ? '#0F172A' : '#64748B',
+                        fontWeight: 700,
+                        fontSize: '14px',
+                        boxShadow: feeCategory === 'academic' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s ease'
+                    }}
+                >
+                    <Layers size={16} color={feeCategory === 'academic' ? '#2563EB' : '#64748B'} />
+                    Academic Year Fees
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setFeeCategory('items')}
+                    style={{
+                        padding: '10px 20px',
+                        borderRadius: '9px',
+                        border: 'none',
+                        background: feeCategory === 'items' ? '#FFFFFF' : 'transparent',
+                        color: feeCategory === 'items' ? '#0F172A' : '#64748B',
+                        fontWeight: 700,
+                        fontSize: '14px',
+                        boxShadow: feeCategory === 'items' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s ease'
+                    }}
+                >
+                    <Package size={16} color={feeCategory === 'items' ? '#2563EB' : '#64748B'} />
+                    5 Ancillary Items (Uniform, Books, Van, Tie/Belt, Shoes)
+                </button>
             </div>
 
             <div className="config-box">
                 <div className="selection-row">
                     <div className="select-group">
-                        <label>Select Class to Configure</label>
+                        <label>Select Target Class</label>
                         <select
                             value={selectedClassId}
-                            onChange={(e) => setSelectedClassId(e.target.value)}
+                            onChange={(e) => {
+                                setSelectedClassId(e.target.value);
+                                setSelectedStudentIds([]);
+                            }}
+                            disabled={loading || saving}
                         >
-                            {classes.map(cls => (
+                            {classes.map((cls) => (
                                 <option key={cls.id} value={cls.id}>
-                                    {cls.class_name} {cls.section ? `- ${cls.section}` : ''}
+                                    {cls.class_name} {cls.section ? `(${cls.section})` : ''}
                                 </option>
                             ))}
                         </select>
@@ -750,338 +822,442 @@ export function SetFeesPage() {
                                 </label>
                                 <input
                                     type="text"
-                                    placeholder="Filter by name..."
+                                    placeholder="Search student..."
                                     value={studentSearchQuery}
                                     onChange={(e) => setStudentSearchQuery(e.target.value)}
                                     style={{
                                         padding: '6px 12px',
                                         borderRadius: '6px',
                                         border: '1px solid #D1D5DB',
-                                        fontSize: '14px',
-                                        outline: 'none'
+                                        fontSize: '13px'
                                     }}
                                 />
                             </div>
                         </div>
 
                         {fetchingStudents ? (
-                            <div style={{ color: '#6B7280', fontSize: '14px' }}>Loading students...</div>
+                            <p style={{ color: '#6B7280', fontSize: '14px' }}>Loading students...</p>
                         ) : students.length === 0 ? (
-                            <div style={{ color: '#6B7280', fontSize: '14px' }}>No students found in this class.</div>
+                            <p style={{ color: '#6B7280', fontSize: '14px' }}>No students enrolled in this class.</p>
                         ) : (
-                            <div className="student-grid" style={{
+                            <div style={{
                                 display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-                                gap: '12px',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                                gap: '8px',
                                 maxHeight: '200px',
                                 overflowY: 'auto',
-                                padding: '8px',
-                                background: '#FFFFFF',
-                                border: '1px solid #E5E7EB',
-                                borderRadius: '8px'
+                                padding: '4px'
                             }}>
                                 {students
-                                    .filter(s => s.full_name.toLowerCase().includes(studentSearchQuery.toLowerCase()))
-                                    .map(student => {
-                                        const isSelected = selectedStudentIds.includes(student.id);
-                                        return (
-                                            <label
-                                                key={student.id}
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '8px',
-                                                    padding: '8px 12px',
-                                                    background: isSelected ? '#EFF6FF' : '#FFFFFF',
-                                                    border: `1px solid ${isSelected ? '#3B82F6' : '#E5E7EB'}`,
-                                                    borderRadius: '8px',
-                                                    cursor: 'pointer',
-                                                    fontSize: '14px',
-                                                    transition: 'all 0.2s'
+                                    .filter(s => s.full_name.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
+                                        (s.roll_number && s.roll_number.toString().includes(studentSearchQuery)))
+                                    .map(student => (
+                                        <label
+                                            key={student.id}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                padding: '8px 12px',
+                                                background: selectedStudentIds.includes(student.id) ? '#EFF6FF' : '#FFFFFF',
+                                                border: selectedStudentIds.includes(student.id) ? '1px solid #3B82F6' : '1px solid #E5E7EB',
+                                                borderRadius: '8px',
+                                                cursor: 'pointer',
+                                                fontSize: '13px',
+                                                userSelect: 'none'
+                                            }}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedStudentIds.includes(student.id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedStudentIds(prev => [...prev, student.id]);
+                                                    } else {
+                                                        setSelectedStudentIds(prev => prev.filter(id => id !== student.id));
+                                                    }
                                                 }}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isSelected}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) {
-                                                            setSelectedStudentIds([...selectedStudentIds, student.id]);
-                                                        } else {
-                                                            setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
-                                                        }
-                                                    }}
-                                                />
-                                                <span style={{ fontWeight: '500', color: '#1D1D1F' }}>
-                                                    {student.roll_number ? `#${student.roll_number} ` : ''}
-                                                    {student.full_name}
-                                                </span>
-                                            </label>
-                                        );
-                                    })}
+                                            />
+                                            <span style={{ fontWeight: '500', color: '#1F2937' }}>
+                                                {student.roll_number ? `#${student.roll_number} ` : ''}{student.full_name}
+                                            </span>
+                                        </label>
+                                    ))}
                             </div>
                         )}
                     </div>
                 )}
 
-                <div className="fee-form">
-                    <div className="form-header">
-                        <h2 className="section-title">Fee Breakdown</h2>
-                        <div className="total-badge">
-                            Total Annual Fee: ₹{calculateTotal().toLocaleString()}
+                {/* Academic Fee Configuration Grid */}
+                {feeCategory === 'academic' ? (
+                    <div className="fee-form-grid">
+                        <div className="fee-card">
+                            <div className="fee-card-header">
+                                <h3>1. Admission / Re-Admission Fee</h3>
+                                <p className="fee-sub">ಪ್ರವೇಶ / ಪುನಃ ಪ್ರವೇಶ ಶುಲ್ಕ</p>
+                            </div>
+                            <div className="fee-input-wrapper">
+                                <span>₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={fees.admission_fee || ''}
+                                    onChange={(e) => handleInputChange('admission_fee', e.target.value)}
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="fee-card highlight">
+                            <div className="fee-card-header">
+                                <h3>2. Tuition Fee</h3>
+                                <p className="fee-sub">ಬೋಧನಾ ಶುಲ್ಕ</p>
+                            </div>
+                            <div className="fee-input-wrapper">
+                                <span>₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={fees.tuition_fee || ''}
+                                    onChange={(e) => handleInputChange('tuition_fee', e.target.value)}
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="fee-card">
+                            <div className="fee-card-header">
+                                <h3>3. Betterment Fee</h3>
+                                <p className="fee-sub">ಅಭಿವೃದ್ಧಿ ಶುಲ್ಕ</p>
+                            </div>
+                            <div className="fee-input-wrapper">
+                                <span>₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={fees.betterment_fee || ''}
+                                    onChange={(e) => handleInputChange('betterment_fee', e.target.value)}
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="fee-card">
+                            <div className="fee-card-header">
+                                <h3>4. Sports Fee</h3>
+                                <p className="fee-sub">ಕ್ರೀಡಾ ಶುಲ್ಕ</p>
+                            </div>
+                            <div className="fee-input-wrapper">
+                                <span>₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={fees.sports_fee || ''}
+                                    onChange={(e) => handleInputChange('sports_fee', e.target.value)}
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="fee-card">
+                            <div className="fee-card-header">
+                                <h3>5. Reading Room Fee</h3>
+                                <p className="fee-sub">ವಾಚನಾಲಯ ಶುಲ್ಕ</p>
+                            </div>
+                            <div className="fee-input-wrapper">
+                                <span>₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={fees.reading_room_fee || ''}
+                                    onChange={(e) => handleInputChange('reading_room_fee', e.target.value)}
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="fee-card">
+                            <div className="fee-card-header">
+                                <h3>6. Medical Fee</h3>
+                                <p className="fee-sub">ವೈದ್ಯಕೀಯ ಶುಲ್ಕ</p>
+                            </div>
+                            <div className="fee-input-wrapper">
+                                <span>₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={fees.medical_fee || ''}
+                                    onChange={(e) => handleInputChange('medical_fee', e.target.value)}
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="fee-card">
+                            <div className="fee-card-header">
+                                <h3>7. Laboratory Fee</h3>
+                                <p className="fee-sub">ಪ್ರಯೋಗಶಾಲಾ ಶುಲ್ಕ</p>
+                            </div>
+                            <div className="fee-input-wrapper">
+                                <span>₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={fees.laboratory_fee || ''}
+                                    onChange={(e) => handleInputChange('laboratory_fee', e.target.value)}
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="fee-card">
+                            <div className="fee-card-header">
+                                <h3>8. AVE Fee</h3>
+                                <p className="fee-sub">ಶ್ರವಣ-ದೃಶ್ಯ ಶಿಕ್ಷಣ ಶುಲ್ಕ</p>
+                            </div>
+                            <div className="fee-input-wrapper">
+                                <span>₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={fees.ave_fee || ''}
+                                    onChange={(e) => handleInputChange('ave_fee', e.target.value)}
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="fee-card">
+                            <div className="fee-card-header">
+                                <h3>9. SWF</h3>
+                                <p className="fee-sub">ವಿದ್ಯಾರ್ಥಿ ಕ್ಷೇಮಾಭಿವೃದ್ಧಿ ನಿಧಿ</p>
+                            </div>
+                            <div className="fee-input-wrapper">
+                                <span>₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={fees.swf || ''}
+                                    onChange={(e) => handleInputChange('swf', e.target.value)}
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="fee-card">
+                            <div className="fee-card-header">
+                                <h3>10. TBF</h3>
+                                <p className="fee-sub">ಉಪಾಧ್ಯಾಯರ ಕಲ್ಯಾಣ ನಿಧಿ</p>
+                            </div>
+                            <div className="fee-input-wrapper">
+                                <span>₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={fees.tbf || ''}
+                                    onChange={(e) => handleInputChange('tbf', e.target.value)}
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="fee-card">
+                            <div className="fee-card-header">
+                                <h3>11. Examination Fee</h3>
+                                <p className="fee-sub">ಪರೀಕ್ಷಾ ಶುಲ್ಕ</p>
+                            </div>
+                            <div className="fee-input-wrapper">
+                                <span>₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={fees.examination_fee || ''}
+                                    onChange={(e) => handleInputChange('examination_fee', e.target.value)}
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="fee-card">
+                            <div className="fee-card-header">
+                                <h3>12. Fines</h3>
+                                <p className="fee-sub">ದಂಡ</p>
+                            </div>
+                            <div className="fee-input-wrapper">
+                                <span>₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={fees.fines || ''}
+                                    onChange={(e) => handleInputChange('fines', e.target.value)}
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="fee-card">
+                            <div className="fee-card-header">
+                                <h3>13. Others</h3>
+                                <p className="fee-sub">ಇತರೆ ಶುಲ್ಕಗಳು</p>
+                            </div>
+                            <div className="fee-input-wrapper">
+                                <span>₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={fees.others || ''}
+                                    onChange={(e) => handleInputChange('others', e.target.value)}
+                                    placeholder="0"
+                                />
+                            </div>
                         </div>
                     </div>
-
-                    <div className="fee-grid">
-                        {feeItems.map((item, index) => (
-                            <div className="fee-field" key={item.key}>
-                                <div className="field-label-group">
-                                    <span className="field-index">{index + 1}.</span>
-                                    <label>{item.label}</label>
+                ) : (
+                    /* 5 Ancillary Items Configuration Grid */
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                        gap: '20px',
+                        marginTop: '24px'
+                    }}>
+                        {ANCILLARY_ITEMS.map((item) => (
+                            <div
+                                key={item.key}
+                                style={{
+                                    background: '#FFFFFF',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: '16px',
+                                    padding: '24px',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'space-between',
+                                    gap: '16px'
+                                }}
+                            >
+                                <div>
+                                    <div style={{ fontSize: '24px', marginBottom: '8px' }}>{item.icon}</div>
+                                    <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700, color: '#0F172A' }}>
+                                        {item.label_en}
+                                    </h3>
+                                    <p style={{ margin: 0, fontSize: '13px', color: '#64748B' }}>
+                                        {item.label_kn}
+                                    </p>
                                 </div>
-                                <div className="input-with-symbol">
-                                    <span className="currency-symbol">₹</span>
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    background: '#F8FAFC',
+                                    border: '1px solid #CBD5E1',
+                                    borderRadius: '10px',
+                                    padding: '0 12px'
+                                }}>
+                                    <span style={{ fontSize: '16px', fontWeight: 600, color: '#64748B', marginRight: '6px' }}>₹</span>
                                     <input
                                         type="number"
-                                        value={fees[item.key] === 0 ? '' : fees[item.key]}
-                                        onChange={(e) => handleFeeChange(item.key, e.target.value)}
+                                        min="0"
+                                        value={itemFees[item.key as keyof ItemFeeBreakdown] || ''}
+                                        onChange={(e) => handleItemInputChange(item.key as keyof ItemFeeBreakdown, e.target.value)}
                                         placeholder="0"
+                                        style={{
+                                            border: 'none',
+                                            background: 'transparent',
+                                            width: '100%',
+                                            padding: '12px 0',
+                                            fontSize: '16px',
+                                            fontWeight: 700,
+                                            color: '#0F172A',
+                                            outline: 'none'
+                                        }}
                                     />
                                 </div>
                             </div>
                         ))}
                     </div>
+                )}
+
+                <div className="total-calculation-bar">
+                    <div className="total-label">
+                        <span>Total Set Fee</span>
+                        <strong>
+                            ₹ {feeCategory === 'academic' ? calculateTotal().toLocaleString() : calculateItemTotal().toLocaleString()}
+                        </strong>
+                    </div>
 
                     <div className="form-actions">
                         <button
-                            className="reset-btn"
+                            type="button"
+                            className="btn-reset"
                             onClick={handleReset}
+                            disabled={saving}
                         >
                             <RotateCcw size={18} />
-                            Reset Changes
+                            <span>Reset</span>
                         </button>
+
                         <button
-                            className="save-btn"
-                            disabled={saving || !currentYear}
+                            type="button"
+                            className="btn-save"
                             onClick={handleSave}
+                            disabled={saving}
                         >
                             <Save size={18} />
-                            {saving ? 'Saving...' : 'Publish Fee Structure'}
+                            <span>
+                                {saving ? 'Saving...' : feeCategory === 'academic' ? 'Publish Academic Fees' : 'Publish Ancillary Item Fees'}
+                            </span>
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* Published Fees Overview */}
-            <div className="config-box" style={{ marginTop: '24px' }}>
-                <div className="form-header" style={{ marginBottom: '20px' }}>
-                    <h2 className="section-title">Published Fees Overview</h2>
-                    <p style={{ color: '#6B7280', margin: 0 }}>View class-wide structures and individual student custom configurations for {currentYear?.year_name}</p>
-                </div>
+            {/* Overview / Existing Structures */}
+            <div style={{ marginTop: '40px' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#0F172A', marginBottom: '16px' }}>
+                    {feeCategory === 'academic' ? 'Current Academic Fee Structures' : 'Current Ancillary Item Structures'}
+                </h2>
 
-                {publishedOverview.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#6B7280', background: '#F9FAFB', borderRadius: '12px' }}>
-                        No fees have been published for the current academic year yet.
+                {feeCategory === 'academic' ? (
+                    <div className="overview-accordion">
+                        {publishedOverview.map((item: any) => (
+                            <div key={item.classId} style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '12px', marginBottom: '12px', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>{item.className}</h4>
+                                    <span style={{ fontSize: '13px', color: '#64748B' }}>
+                                        {item.classFee ? `Class Fee: ₹${Number(item.classFee.total_fee).toLocaleString()}` : 'No class fee configured'}
+                                        {item.customStudents.length > 0 ? ` • ${item.customStudents.length} student(s) customized` : ''}
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedClassId(item.classId)}
+                                    style={{ padding: '6px 14px', background: '#EFF6FF', color: '#2563EB', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}
+                                >
+                                    Configure
+                                </button>
+                            </div>
+                        ))}
                     </div>
                 ) : (
-                    <div className="published-overview-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {publishedOverview.map((item) => {
-                            const isExpanded = expandedClassIds.includes(item.classId);
-                            const className = `${item.className}${item.section ? ` - ${item.section}` : ''}`;
-                            const hasFees = item.classFee || item.customStudents.length > 0;
-                            
-                            return (
-                                <div 
-                                    key={item.classId} 
-                                    style={{
-                                        border: '1px solid #E5E7EB',
-                                        borderRadius: '12px',
-                                        overflow: 'hidden',
-                                        background: '#FFFFFF',
-                                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                                        opacity: hasFees ? 1 : 0.8,
-                                        transition: 'all 0.2s ease'
-                                    }}
-                                >
-                                    {/* Class Accordion Header */}
-                                    <div 
-                                        onClick={() => {
-                                            if (isExpanded) {
-                                                setExpandedClassIds(expandedClassIds.filter(id => id !== item.classId));
-                                            } else {
-                                                setExpandedClassIds([...expandedClassIds, item.classId]);
-                                            }
-                                        }}
-                                        style={{
-                                            padding: '16px 20px',
-                                            background: isExpanded ? '#F9FAFB' : '#FFFFFF',
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            cursor: 'pointer',
-                                            userSelect: 'none',
-                                            borderBottom: isExpanded ? '1px solid #E5E7EB' : 'none',
-                                            transition: 'background-color 0.2s ease'
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                            <span style={{ 
-                                                fontSize: '16px', 
-                                                fontWeight: '600', 
-                                                color: '#1D1D1F' 
-                                            }}>
-                                                {className}
+                    <div className="overview-accordion">
+                        {itemPublishedOverview.map((item: any) => (
+                            <div key={item.classId} style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '12px', marginBottom: '12px', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>{item.className}</h4>
+                                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '6px' }}>
+                                        {item.classItems.map((ci: any) => (
+                                            <span key={ci.item_type} style={{ fontSize: '12px', background: '#F1F5F9', padding: '2px 8px', borderRadius: '6px', color: '#334155', fontWeight: 600 }}>
+                                                {ci.item_type}: ₹{Number(ci.amount).toLocaleString()}
                                             </span>
-                                            {item.classFee && (
-                                                <span style={{
-                                                    fontSize: '12px',
-                                                    fontWeight: '600',
-                                                    background: '#E0F2FE',
-                                                    color: '#0369A1',
-                                                    padding: '2px 8px',
-                                                    borderRadius: '12px'
-                                                }}>
-                                                    Class Default: ₹{Number(item.classFee.total_fee).toLocaleString()}
-                                                </span>
-                                            )}
-                                            {item.customStudents.length > 0 && (
-                                                <span style={{
-                                                    fontSize: '12px',
-                                                    fontWeight: '600',
-                                                    background: '#FEF3C7',
-                                                    color: '#D97706',
-                                                    padding: '2px 8px',
-                                                    borderRadius: '12px'
-                                                }}>
-                                                    {item.customStudents.length} Customized Student{item.customStudents.length > 1 ? 's' : ''}
-                                                </span>
-                                            )}
-                                            {!hasFees && (
-                                                <span style={{
-                                                    fontSize: '12px',
-                                                    color: '#9CA3AF',
-                                                    fontStyle: 'italic'
-                                                }}>
-                                                    No fees configured
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <span style={{ 
-                                                transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', 
-                                                transition: 'transform 0.2s ease',
-                                                display: 'inline-block',
-                                                color: '#6B7280'
-                                            }}>
-                                                ▶
-                                            </span>
-                                        </div>
+                                        ))}
                                     </div>
-
-                                    {/* Class Accordion Body */}
-                                    {isExpanded && (
-                                        <div style={{ padding: '20px', background: '#FFFFFF' }}>
-                                            {/* Section 1: Class Default Structure */}
-                                            <div style={{ marginBottom: '20px' }}>
-                                                <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: '600', color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                    Class-Wide Default Fee
-                                                </h4>
-                                                {item.classFee ? (
-                                                    <div style={{ 
-                                                        display: 'flex', 
-                                                        justifyContent: 'space-between', 
-                                                        alignItems: 'center', 
-                                                        background: '#F3F4F6', 
-                                                        padding: '12px 16px', 
-                                                        borderRadius: '8px' 
-                                                    }}>
-                                                        <div>
-                                                            <span style={{ fontWeight: '600', color: '#1D1D1F' }}>
-                                                                Standard Class Fee: ₹{Number(item.classFee.total_fee).toLocaleString()}
-                                                            </span>
-                                                        </div>
-                                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                                            <button
-                                                                onClick={() => handleEditRow(item.classId)}
-                                                                style={{ padding: '6px 12px', background: '#EFF6FF', color: '#3B82F6', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                            >
-                                                                <Edit2 size={14} /> Edit
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDelete(item.classFee.id, className)}
-                                                                style={{ padding: '6px 12px', background: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                            >
-                                                                <Trash2 size={14} /> Delete
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div style={{ color: '#6B7280', fontSize: '14px', padding: '12px', background: '#F9FAFB', borderRadius: '8px', border: '1px dashed #D1D5DB' }}>
-                                                        No class-wide default fee is currently configured.
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Section 2: Individual Custom Student Fees */}
-                                            <div>
-                                                <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: '600', color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                    Custom Student Fees
-                                                </h4>
-                                                {item.customStudents.length === 0 ? (
-                                                    <div style={{ color: '#6B7280', fontSize: '14px', padding: '12px', background: '#F9FAFB', borderRadius: '8px', border: '1px dashed #D1D5DB' }}>
-                                                        No students in this class have customized fees.
-                                                    </div>
-                                                ) : (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                        {item.customStudents.map((stud: any) => (
-                                                            <div 
-                                                                key={stud.studentId}
-                                                                style={{
-                                                                    display: 'flex',
-                                                                    justifyContent: 'space-between',
-                                                                    alignItems: 'center',
-                                                                    border: '1px solid #E5E7EB',
-                                                                    padding: '10px 16px',
-                                                                    borderRadius: '8px',
-                                                                    background: '#FFFBEB'
-                                                                }}
-                                                            >
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                    <span style={{ fontWeight: '500', color: '#1D1D1F' }}>
-                                                                        {stud.rollNumber ? `#${stud.rollNumber} ` : ''}
-                                                                        {stud.fullName}
-                                                                    </span>
-                                                                    <span style={{ 
-                                                                        fontSize: '13px', 
-                                                                        fontWeight: '600', 
-                                                                        color: '#D97706' 
-                                                                    }}>
-                                                                        (Custom Total: ₹{stud.totalAmount.toLocaleString()})
-                                                                    </span>
-                                                                </div>
-                                                                <div style={{ display: 'flex', gap: '8px' }}>
-                                                                    <button
-                                                                        onClick={() => handleEditStudentFee(item.classId, stud.studentId)}
-                                                                        style={{ padding: '6px 12px', background: '#EFF6FF', color: '#3B82F6', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                                    >
-                                                                        <Edit2 size={14} /> Edit
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handleDeleteStudentFee(stud.studentFeeId, stud.studentId, item.classId, stud.fullName, item.classFee)}
-                                                                        style={{ padding: '6px 12px', background: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                                    >
-                                                                        <Trash2 size={14} /> Revert
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
-                            );
-                        })}
+                                <button
+                                    onClick={() => setSelectedClassId(item.classId)}
+                                    style={{ padding: '6px 14px', background: '#EFF6FF', color: '#2563EB', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}
+                                >
+                                    Configure
+                                </button>
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>

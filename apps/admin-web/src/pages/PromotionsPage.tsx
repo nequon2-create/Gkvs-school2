@@ -172,7 +172,14 @@ export function PromotionsPage() {
                                         checked={selectedStudentIds.includes(student.id)}
                                         onChange={() => handleSelectStudent(student.id)}
                                     />
-                                    <div className="student-profile-pic-container">
+                                    <div
+                                        className="student-profile-pic-container"
+                                        data-lightbox-photo={student.photo_url || ''}
+                                        data-lightbox-title={student.full_name}
+                                        data-lightbox-subtitle={`Reg ID: ${student.registration_number}`}
+                                        style={{ cursor: 'pointer' }}
+                                        title="Click to view photo (WhatsApp style)"
+                                    >
                                         {student.photo_url ? (
                                             <img src={student.photo_url} alt="" className="student-profile-pic" />
                                         ) : (
