@@ -33,11 +33,11 @@ interface FeeItem {
 }
 
 const ANCILLARY_OPTIONS = [
-    { key: 'uniform', label_en: 'School Dress / Uniform', label_kn: 'ಶಾಲಾ ಸಮವಸ್ತ್ರ ಶುಲ್ಕ' },
-    { key: 'books', label_en: 'Books Fee', label_kn: 'ಪುಸ್ತಕಗಳ ಶುಲ್ಕ' },
-    { key: 'van', label_en: 'Van / Transport Fee', label_kn: 'ವಾಹನ / ಸಾರಿಗೆ ಶುಲ್ಕ' },
-    { key: 'tie_belt', label_en: 'Tie & Belt Fee', label_kn: 'ಟೈ ಮತ್ತು ಬೆಲ್ಟ್ ಶುಲ್ಕ' },
-    { key: 'shoes', label_en: 'Shoes Fee', label_kn: 'ಶೂಸ್ / ಪಾದರಕ್ಷೆ ಶುಲ್ಕ' },
+    { key: 'uniform', label_en: 'School Dress / Uniform', label_kn: 'ಶಾಲಾ ಸಮವಸ್ತ್ರ', icon: '👔' },
+    { key: 'books', label_en: 'Books Fee', label_kn: 'ಪುಸ್ತಕಗಳ ಶುಲ್ಕ', icon: '📚' },
+    { key: 'van', label_en: 'Van / Transport Fee', label_kn: 'ವಾಹನ / ಸಾರಿಗೆ', icon: '🚌' },
+    { key: 'tie_belt', label_en: 'Tie & Belt Fee', label_kn: 'ಟೈ ಮತ್ತು ಬೆಲ್ಟ್', icon: '🎗️' },
+    { key: 'shoes', label_en: 'Shoes Fee', label_kn: 'ಶೂಸ್ / ಪಾದರಕ್ಷೆ', icon: '👟' },
 ];
 
 export function CreateReceiptPage() {
@@ -210,7 +210,6 @@ export function CreateReceiptPage() {
                     setItemAmount(Number(data.amount_pending) || Number(data.amount_total) || 0);
                     setAmountPaid(Number(data.amount_pending) || Number(data.amount_total) || 0);
                 } else {
-                    // Try class fallback
                     setBalanceInfo({ totalAmount: 0, amountPaid: 0, amountPending: 0 });
                     setItemAmount(0);
                     setAmountPaid(0);
@@ -403,7 +402,8 @@ export function CreateReceiptPage() {
                     right: 0,
                     bottom: 0,
                     backgroundColor: 'rgba(0, 0, 0, 0.45)',
-                    backdropFilter: 'blur(8px)',
+                    backdropFilter: 'blur(10px)',
+                    WebkitBackdropFilter: 'blur(10px)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -499,77 +499,55 @@ export function CreateReceiptPage() {
                 </button>
 
                 <div className="controls-header">
-                    <h2>Issue Fee Receipt</h2>
+                    <h2>Issue Official Receipt</h2>
                     <p>Select category, student, and print official receipt</p>
                 </div>
 
-                {/* Apple Segmented Toggle: Academic Fee vs Ancillary Item Fee */}
-                <div style={{
-                    display: 'flex',
-                    background: '#E2E8F0',
-                    padding: '3px',
-                    borderRadius: '10px',
-                    marginBottom: '16px'
-                }}>
+                {/* Apple Cupertino Segmented Mode Toggle */}
+                <div className="receipt-mode-toggle">
                     <button
                         type="button"
+                        className={`mode-toggle-btn ${receiptType === 'academic' ? 'active' : ''}`}
                         onClick={() => setReceiptType('academic')}
-                        style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            border: 'none',
-                            borderRadius: '8px',
-                            background: receiptType === 'academic' ? '#FFFFFF' : 'transparent',
-                            color: receiptType === 'academic' ? '#0F172A' : '#64748B',
-                            fontWeight: 700,
-                            fontSize: '13px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '6px'
-                        }}
                     >
-                        <Layers size={14} /> Academic Fee
+                        <Layers size={15} /> Academic Fee
                     </button>
                     <button
                         type="button"
+                        className={`mode-toggle-btn ${receiptType === 'item' ? 'active' : ''}`}
                         onClick={() => setReceiptType('item')}
-                        style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            border: 'none',
-                            borderRadius: '8px',
-                            background: receiptType === 'item' ? '#FFFFFF' : 'transparent',
-                            color: receiptType === 'item' ? '#0F172A' : '#64748B',
-                            fontWeight: 700,
-                            fontSize: '13px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '6px'
-                        }}
                     >
-                        <Package size={14} /> 5 Items Fee
+                        <Package size={15} /> 5 Items Receipt
                     </button>
                 </div>
 
-                {/* If Item Receipt: select which item */}
+                {/* If Item Receipt: Apple Interactive Visual Selection Tiles */}
                 {receiptType === 'item' && (
-                    <div className="control-group" style={{ marginBottom: '16px' }}>
-                        <label>Select Item</label>
-                        <select
-                            value={selectedItemType}
-                            onChange={(e) => setSelectedItemType(e.target.value)}
-                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontWeight: 600 }}
-                        >
+                    <div style={{ marginBottom: '18px' }}>
+                        <label style={{
+                            display: 'block',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            color: '#86868B',
+                            marginBottom: '8px'
+                        }}>
+                            Select Ancillary Item
+                        </label>
+                        <div className="item-selection-grid">
                             {ANCILLARY_OPTIONS.map(opt => (
-                                <option key={opt.key} value={opt.key}>
-                                    {opt.label_en} ({opt.label_kn})
-                                </option>
+                                <div
+                                    key={opt.key}
+                                    className={`item-tile ${selectedItemType === opt.key ? 'selected' : ''}`}
+                                    onClick={() => setSelectedItemType(opt.key)}
+                                >
+                                    <span className="item-tile-icon">{opt.icon}</span>
+                                    <span className="item-tile-title">{opt.label_en.split('/')[0]}</span>
+                                    <span className="item-tile-sub">{opt.label_kn}</span>
+                                </div>
                             ))}
-                        </select>
+                        </div>
                     </div>
                 )}
 
@@ -608,14 +586,15 @@ export function CreateReceiptPage() {
                 {/* Display Current Student Outstanding Balance */}
                 {studentInfo.id && (
                     <div style={{
-                        background: '#F8FAFC',
-                        border: '1px solid #CBD5E1',
-                        borderRadius: '12px',
-                        padding: '14px',
-                        marginBottom: '16px'
+                        background: '#FFFFFF',
+                        border: '1px solid rgba(0,0,0,0.08)',
+                        borderRadius: '16px',
+                        padding: '14px 18px',
+                        marginBottom: '18px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
                     }}>
-                        <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>
-                            {receiptType === 'academic' ? 'Academic Fee Status' : `${selectedItemType.toUpperCase()} Fee Status`}
+                        <div style={{ fontSize: '11px', color: '#86868B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            {receiptType === 'academic' ? 'Academic Fee Status' : `${selectedItemType.toUpperCase()} Status`}
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '13px' }}>
                             <span>Total Set: <strong>₹{balanceInfo.totalAmount.toLocaleString()}</strong></span>
@@ -682,23 +661,19 @@ export function CreateReceiptPage() {
                     </div>
                 )}
 
-                <div className="action-buttons-stack">
-                    <button
-                        className="print-btn"
-                        onClick={handleSaveAndPrint}
-                        disabled={saving}
-                    >
-                        <Printer size={18} />
-                        <span>{saving ? 'Saving...' : 'Print & Save Official Receipt'}</span>
-                    </button>
-                </div>
+                <button
+                    className="print-btn"
+                    onClick={handleSaveAndPrint}
+                    disabled={saving}
+                >
+                    <Printer size={18} />
+                    <span>{saving ? 'Saving...' : 'Print & Save Official Receipt'}</span>
+                </button>
             </div>
 
             {/* Right Printable Official Receipt Canvas */}
             <div className="receipt-preview-area">
                 <div className="official-receipt-sheet" id="printable-receipt">
-                    <div className="sheet-border-decor"></div>
-
                     {/* Top School Header */}
                     <div className="receipt-header">
                         <div className="school-trust-name">ಅಪ್ಪಾಜಿ ಶಿಕ್ಷಣ ಸಂಸ್ಥೆ (ರಿ.) / Appaji Education Trust (R.)</div>
@@ -711,16 +686,16 @@ export function CreateReceiptPage() {
                     </div>
 
                     <div className="receipt-meta-row">
-                        <div className="meta-col">
-                            <span className="meta-label">ರಸೀದಿ ನಂ. / Receipt No.: </span>
+                        <div>
+                            <span>ರಸೀದಿ ನಂ. / Receipt No.: </span>
                             <span className="handwritten-val bold">{receiptNumber}</span>
                         </div>
-                        <div className="meta-col center">
-                            <span className="meta-label">ಶೈಕ್ಷಣಿಕ ವರ್ಷ / Year: </span>
+                        <div>
+                            <span>ಶೈಕ್ಷಣಿಕ ವರ್ಷ / Year: </span>
                             <span className="handwritten-val bold">{studentInfo.academic_year_name || '2026-2027'}</span>
                         </div>
-                        <div className="meta-col right">
-                            <span className="meta-label">ದಿನಾಂಕ / Date: </span>
+                        <div>
+                            <span>ದಿನಾಂಕ / Date: </span>
                             <span className="handwritten-val">{receiptDate}</span>
                         </div>
                     </div>
@@ -742,17 +717,17 @@ export function CreateReceiptPage() {
                     </div>
 
                     <div className="class-detail-row">
-                        <div className="class-col">
+                        <div>
                             <span>ತರಗತಿ/ </span>
                             <span className="field-label-en">Class:</span>
                             <span className="handwritten-val">{studentInfo.class_name}</span>
                         </div>
-                        <div className="roll-col">
+                        <div>
                             <span>ರೋಲ್ ನಂ./ </span>
                             <span className="field-label-en">Roll No.:</span>
                             <span className="handwritten-val">{studentInfo.roll_number}</span>
                         </div>
-                        <div className="sec-col">
+                        <div>
                             <span>ವಿಭಾಗ/ </span>
                             <span className="field-label-en">Sec.:</span>
                             <span className="handwritten-val">{studentInfo.section}</span>
@@ -772,10 +747,10 @@ export function CreateReceiptPage() {
                             <tbody>
                                 {feeItems.map(item => (
                                     <tr key={item.id}>
-                                        <td className="center">{item.id}.</td>
+                                        <td style={{ textAlign: 'center' }}>{item.id}.</td>
                                         <td>
-                                            <span className="table-kn">{item.label_kn} / </span>
-                                            <span className="table-en">{item.label_en}</span>
+                                            <span>{item.label_kn} / </span>
+                                            <span style={{ fontSize: '12px', color: '#333' }}>{item.label_en}</span>
                                         </td>
                                         <td className="amount-cell">
                                             <input
@@ -793,8 +768,7 @@ export function CreateReceiptPage() {
                             <tfoot>
                                 <tr>
                                     <td colSpan={2} className="total-label">
-                                        <span className="kn-bold">ಒಟ್ಟು / </span>
-                                        <span className="en-bold">TOTAL</span>
+                                        <strong>ಒಟ್ಟು / TOTAL</strong>
                                     </td>
                                     <td className="total-amount-val">{totalAmount}.00</td>
                                 </tr>
@@ -811,12 +785,12 @@ export function CreateReceiptPage() {
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td className="center">1.</td>
+                                    <td style={{ textAlign: 'center' }}>1.</td>
                                     <td>
-                                        <span className="table-kn">
+                                        <span>
                                             {ANCILLARY_OPTIONS.find(o => o.key === selectedItemType)?.label_kn} /{' '}
                                         </span>
-                                        <span className="table-en">
+                                        <span style={{ fontSize: '12px', color: '#333' }}>
                                             {ANCILLARY_OPTIONS.find(o => o.key === selectedItemType)?.label_en}
                                         </span>
                                     </td>
@@ -828,8 +802,7 @@ export function CreateReceiptPage() {
                             <tfoot>
                                 <tr>
                                     <td colSpan={2} className="total-label">
-                                        <span className="kn-bold">ಒಟ್ಟು / </span>
-                                        <span className="en-bold">TOTAL</span>
+                                        <strong>ಒಟ್ಟು / TOTAL</strong>
                                     </td>
                                     <td className="total-amount-val">{totalAmount}.00</td>
                                 </tr>
@@ -838,16 +811,14 @@ export function CreateReceiptPage() {
                     )}
 
                     <div className="words-section">
-                        <span className="kn-small">ರೂಪಾಯಿ (ಅಕ್ಷರಗಳಲ್ಲಿ) : </span>
-                        <span className="en-small">Rupees in words: </span>
+                        <span>ರೂಪಾಯಿ (ಅಕ್ಷರಗಳಲ್ಲಿ) / Rupees in words: </span>
                         <span className="handwritten-words">{rupeesInWords}</span>
                     </div>
 
                     <div className="signature-line-area">
                         <div className="sign-box">
                             <div className="sign-dashed"></div>
-                            <span className="kn-small">ಸಹಿ / </span>
-                            <span className="en-small">Signature</span>
+                            <span style={{ fontSize: '11px', fontWeight: 'bold' }}>ಸಹಿ / Signature</span>
                         </div>
                     </div>
                 </div>
